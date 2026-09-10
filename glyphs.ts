@@ -14,28 +14,36 @@
 // never upscaled in the common range. Small labels bake small (cheap); only
 // the few large ones bake large. The cache is capped for memory. Colour is
 // baked solid; the per-call alpha rides globalAlpha.
+//
+// Every draw call accepts an optional `font` (a CSS font-family list) so one
+// painter can serve several faces - a UI face, a brand face, an icon font -
+// without one painter per face; the family is part of the cache key. The
+// default is the painter-level `opts.font`, unchanged from before.
 import { type Quad, type QuadSize, localPoint } from './quads';
 
 export const TEXT_MIN = 0.5; // px: below this a glyph rasterizes to nothing - skip the call
 
+type Pt = { x: number; y: number };
+
 export interface GlyphPainter {
-  drawText(label: string, x: number, y: number, px: number): void;
-  planeGlyphs(
-    o: { x: number; y: number },
-    exv: { x: number; y: number },
-    eyv: { x: number; y: number },
-    px: number,
-    label: string
-  ): void;
-  planeText(q: Quad, g: QuadSize, lx: number, ly: number, px: number, label: string): void;
+  drawText(label: string, x: number, y: number, px: number, font?: string): void;
+  planeGlyphs(o: Pt, exv: Pt, eyv: Pt, px: number, label: string, font?: string): void;
+  planeText(q: Quad, g: QuadSize, lx: number, ly: number, px: number, label: string, font?: string): void;
+  /** An image lying IN a plane: top-left at screen anchor `o`, `w`x`h` in the
+   *  plane's local units (the units `exv`/`eyv` are the screen images of). */
+  planeImage(o: Pt, exv: Pt, eyv: Pt, img: CanvasImageSource, w: number, h: number): void;
+  /** Drop every baked label. Call once webfonts finish loading so labels that
+   *  baked with a fallback face get re-baked with the real one. */
+  clearCache(): void;
 }
 
 export function createGlyphPainter(
   ctx: CanvasRenderingContext2D,
   dpr: number,
-  opts?: { font?: string }
+  opts?: { font?: string; cacheCap?: number }
 ): GlyphPainter {
-  const font = opts?.font ?? '"Space Mono", monospace';
+  const defaultFont = opts?.font ?? '"Space Mono", monospace';
+  const GLYPH_CAP = opts?.cacheCap ?? 384;
 
   const bakeCtx = (() => {
     const c = document.createElement('canvas');
@@ -48,7 +56,6 @@ export function createGlyphPainter(
     return BAKE_BUCKETS[BAKE_BUCKETS.length - 1];
   };
   const glyphCache = new Map<string, { cv: HTMLCanvasElement; ax: number; ay: number } | null>();
-  const GLYPH_CAP = 384;
   const fillRe = /rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/;
   const parseFill = (style: string | CanvasGradient | CanvasPattern) => {
     if (typeof style !== 'string') return null;
@@ -63,9 +70,10 @@ export function createGlyphPainter(
     rgb: string,
     align: CanvasTextAlign,
     baseline: CanvasTextBaseline,
-    bake: number
+    bake: number,
+    font: string
   ) => {
-    const key = `${rgb}|${align}|${baseline}|${bake}|${text}`;
+    const key = `${rgb}|${align}|${baseline}|${bake}|${text}|${font}`;
     const hit = glyphCache.get(key);
     if (hit !== undefined) return hit;
     if (!bakeCtx) return null;
@@ -100,12 +108,12 @@ export function createGlyphPainter(
     return entry;
   };
 
-  const drawText = (label: string, x: number, y: number, px: number) => {
+  const drawText = (label: string, x: number, y: number, px: number, font: string = defaultFont) => {
     if (px < TEXT_MIN) return;
     const col = parseFill(ctx.fillStyle);
     if (!col) return;
     const bake = bakeBucket(px);
-    const bmp = glyphBitmap(label, col.rgb, ctx.textAlign, ctx.textBaseline, bake);
+    const bmp = glyphBitmap(label, col.rgb, ctx.textAlign, ctx.textBaseline, bake, font);
     if (!bmp) return;
     const s = px / bake;
     ctx.save();
@@ -120,18 +128,12 @@ export function createGlyphPainter(
   // anchor `o` and the screen images of the plane's local +x and +y steps
   // (exv, eyv), shear the glyphs onto the plane so they rotate and foreshorten
   // with it. px is the em height in screen px measured along the +x step.
-  const planeGlyphs = (
-    o: { x: number; y: number },
-    exv: { x: number; y: number },
-    eyv: { x: number; y: number },
-    px: number,
-    label: string
-  ) => {
+  const planeGlyphs = (o: Pt, exv: Pt, eyv: Pt, px: number, label: string, font: string = defaultFont) => {
     if (px < TEXT_MIN) return;
     const col = parseFill(ctx.fillStyle);
     if (!col) return;
     const bake = bakeBucket(px);
-    const bmp = glyphBitmap(label, col.rgb, ctx.textAlign, ctx.textBaseline, bake);
+    const bmp = glyphBitmap(label, col.rgb, ctx.textAlign, ctx.textBaseline, bake, font);
     if (!bmp) return;
     const exl = Math.hypot(exv.x, exv.y) || 1;
     const s = px / bake / exl;
@@ -145,12 +147,25 @@ export function createGlyphPainter(
   // Plane text anchored in a quad's local space: baseline follows the plane's
   // local +x, foreshortened along local +y, so labels read as printed on the
   // surface rather than billboarded toward the camera.
-  const planeText = (q: Quad, g: QuadSize, lx: number, ly: number, px: number, label: string) => {
+  const planeText = (q: Quad, g: QuadSize, lx: number, ly: number, px: number, label: string, font: string = defaultFont) => {
     const o = localPoint(q, g, lx, ly);
     const ex = localPoint(q, g, lx + 1, ly);
     const ey = localPoint(q, g, lx, ly + 1);
-    planeGlyphs(o, { x: ex.x - o.x, y: ex.y - o.y }, { x: ey.x - o.x, y: ey.y - o.y }, px, label);
+    planeGlyphs(o, { x: ex.x - o.x, y: ex.y - o.y }, { x: ey.x - o.x, y: ey.y - o.y }, px, label, font);
   };
 
-  return { drawText, planeGlyphs, planeText };
+  // Same shear as planeGlyphs, applied to an image: one local unit along +x
+  // maps to exv, along +y to eyv, so `w`/`h` are in local units.
+  const planeImage = (o: Pt, exv: Pt, eyv: Pt, img: CanvasImageSource, w: number, h: number) => {
+    ctx.save();
+    ctx.transform(exv.x, exv.y, eyv.x, eyv.y, o.x, o.y);
+    ctx.drawImage(img, 0, 0, w, h);
+    ctx.restore();
+  };
+
+  const clearCache = () => {
+    glyphCache.clear();
+  };
+
+  return { drawText, planeGlyphs, planeText, planeImage, clearCache };
 }
