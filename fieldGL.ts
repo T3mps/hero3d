@@ -13,7 +13,7 @@ import { type Camera, cameraBasis, focalLength } from './camera';
 
 export interface BakedField {
   resize(cssW: number, cssH: number, dpr: number): void;
-  render(cam: Camera): void;
+  render(cam: Camera, centerOff?: { x: number; y: number }): void;
   destroy(): void;
 }
 
@@ -26,6 +26,7 @@ uniform vec3 uUp;
 uniform vec3 uFwd;
 uniform float uF;
 uniform vec2 uHalfView; // css px / 2
+uniform vec2 uCenterOff; // css px shift of the projection centre (x right, y down)
 varying vec4 vColor;
 void main() {
   vec3 d = aPos - uCamPos;
@@ -34,8 +35,8 @@ void main() {
   float cy = dot(d, uUp);
   // screen-space offset in px, then to NDC; multiply by cz and set w=cz so the
   // perspective divide reproduces project()'s cx*f/cz exactly.
-  float ndcX = (cx * uF / cz) / uHalfView.x;
-  float ndcY = (cy * uF / cz) / uHalfView.y;
+  float ndcX = (cx * uF / cz + uCenterOff.x) / uHalfView.x;
+  float ndcY = (cy * uF / cz - uCenterOff.y) / uHalfView.y;
   gl_Position = vec4(ndcX * cz, ndcY * cz, 0.0, cz);
   vColor = aColor;
 }`;
@@ -102,6 +103,7 @@ export function createBakedField(
   const uFwd = gl.getUniformLocation(prog, 'uFwd');
   const uF = gl.getUniformLocation(prog, 'uF');
   const uHalfView = gl.getUniformLocation(prog, 'uHalfView');
+  const uCenterOff = gl.getUniformLocation(prog, 'uCenterOff');
 
   gl.disable(gl.DEPTH_TEST);
   gl.enable(gl.BLEND);
@@ -125,7 +127,7 @@ export function createBakedField(
       canvas.height = Math.max(1, Math.round(h * dpr));
       gl.viewport(0, 0, canvas.width, canvas.height);
     },
-    render(cam: Camera) {
+    render(cam: Camera, centerOff: { x: number; y: number } = { x: 0, y: 0 }) {
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
       const { right, up, fwd } = cameraBasis(cam);
@@ -137,6 +139,7 @@ export function createBakedField(
       gl.uniform3f(uFwd, fwd.x, fwd.y, fwd.z);
       gl.uniform1f(uF, f);
       gl.uniform2f(uHalfView, cssW / 2, cssH / 2);
+      gl.uniform2f(uCenterOff, centerOff.x, centerOff.y);
       gl.bindBuffer(gl.ARRAY_BUFFER, triBuf);
       bindAttribs();
       gl.drawArrays(gl.TRIANGLES, 0, triCount);
