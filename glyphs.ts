@@ -10,8 +10,9 @@
 // same transform: a cached image draw the GPU handles fast at any shear. For
 // crispness, the bake resolution is BUCKETED to the size the label occupies on
 // the device (px x DPR x a supersample factor), so it's baked at or above its
-// on-screen pixels and only ever downsampled - with high-quality smoothing -
-// never upscaled in the common range. Small labels bake small (cheap); only
+// on-screen pixels and only ever downsampled (bilinear: the lifecycle keeps
+// imageSmoothingQuality at 'low' on purpose, see lifecycle.ts) - never
+// upscaled in the common range. Small labels bake small (cheap); only
 // the few large ones bake large. The cache is capped for memory. Colour is
 // baked solid; the per-call alpha rides globalAlpha.
 //
