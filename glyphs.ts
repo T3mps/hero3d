@@ -56,9 +56,18 @@ export function createGlyphPainter(
     return BAKE_BUCKETS[BAKE_BUCKETS.length - 1];
   };
   const glyphCache = new Map<string, { cv: HTMLCanvasElement; ax: number; ay: number } | null>();
+  // ctx.fillStyle reads back in the canvas's canonical serialization: opaque
+  // colours as '#rrggbb', translucent ones as 'rgba(r, g, b, a)'. Accept both
+  // (a hex fill used to parse as nothing and skip the draw).
   const fillRe = /rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/;
+  const hexRe = /^#([0-9a-f]{6})$/i;
   const parseFill = (style: string | CanvasGradient | CanvasPattern) => {
     if (typeof style !== 'string') return null;
+    const h = hexRe.exec(style);
+    if (h) {
+      const n = parseInt(h[1], 16);
+      return { rgb: `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`, a: 1 };
+    }
     const m = fillRe.exec(style);
     if (!m) return null;
     return { rgb: `${m[1]},${m[2]},${m[3]}`, a: m[4] === undefined ? 1 : parseFloat(m[4]) };
