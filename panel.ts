@@ -45,8 +45,9 @@ export interface PanelPainter {
   panelFor(q: Quad, sz: QuadSize, logicalW: number, logicalH: number): Panel;
 }
 
-// The glyph painter parses ctx.fillStyle with an rgb()/rgba() regex; hex
-// colors would silently draw nothing, so normalise here.
+// Normalises shorthand and full hex to one canonical form for callers and
+// tests; the glyph painter itself parses both hex and rgb()/rgba(), so this is
+// about a single predictable fillStyle, not about what it can read.
 export const toRgb = (color: string): string => {
   const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color.trim());
   if (!m) return color;
