@@ -9,7 +9,7 @@
 // The vertex shader reproduces camera.ts's project() exactly (look-at basis +
 // perspective, screen = centre + camSpace * f / cz), so GL geometry lines up
 // pixel-for-pixel with 2D-canvas drawing of the same world.
-import { type Camera, cameraBasis, focalLength } from './camera';
+import { type Camera, cameraBasis, focalLength } from './camera.js';
 
 export interface BakedField {
   resize(cssW: number, cssH: number, dpr: number): void;

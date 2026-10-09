@@ -3,8 +3,8 @@
 // anchors) maps through 1/depth-weighted interpolation, which reproduces the
 // exact projection of the corresponding plane point - plain bilinear blending
 // sits low inside the trapezoid and slides as perspective changes.
-import type { Vec3 } from './math';
-import { type Camera, type Projected, project } from './camera';
+import type { Vec3 } from './math.js';
+import { type Camera, type Projected, project } from './camera.js';
 
 export interface Quad {
   fl: Projected; // far-left

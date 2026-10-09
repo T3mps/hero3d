@@ -1,0 +1,57 @@
+{
+  "name": "@starworks/hero3d",
+  "version": "0.0.0",
+  "description": "A small, dependency-free engine for flat, text-bearing planes seen through a moving perspective camera: Canvas 2D heroes, baked WebGL fields and small WebGL 2 heroes on one lifecycle.",
+  "license": "MIT",
+  "author": "Starworks",
+  "type": "module",
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/T3mps/hero3d.git"
+  },
+  "homepage": "https://github.com/T3mps/hero3d#readme",
+  "bugs": "https://github.com/T3mps/hero3d/issues",
+  "keywords": [
+    "canvas",
+    "webgl2",
+    "perspective",
+    "hero",
+    "animation",
+    "camera"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "default": "./dist/*.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run check && npm test && npm run build"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.3"
+  }
+}

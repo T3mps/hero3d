@@ -3,8 +3,8 @@
 // down). Rects and polygons are perspective-correct through quads.ts;
 // text, icons and images ride the glyph painter's plane shear. Domain-
 // agnostic: an editor screen, a HUD, a poster - anything flat on a plane.
-import { type Quad, type QuadSize, type QuadPainter, localPoint } from './quads';
-import type { GlyphPainter } from './glyphs';
+import { type Quad, type QuadSize, type QuadPainter, localPoint } from './quads.js';
+import type { GlyphPainter } from './glyphs.js';
 
 export interface PanelRect { x: number; y: number; w: number; h: number }
 export interface PanelPoint { x: number; y: number }

@@ -20,7 +20,7 @@
 // painter can serve several faces - a UI face, a brand face, an icon font -
 // without one painter per face; the family is part of the cache key. The
 // default is the painter-level `opts.font`, unchanged from before.
-import { type Quad, type QuadSize, localPoint } from './quads';
+import { type Quad, type QuadSize, localPoint } from './quads.js';
 
 export const TEXT_MIN = 0.5; // px: below this a glyph rasterizes to nothing - skip the call
 

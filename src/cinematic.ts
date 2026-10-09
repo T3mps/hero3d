@@ -2,8 +2,8 @@
 // paths, hand-held drift, and framing-constrained rail sampling. Domain
 // tuning (pivots, key positions, ranges, framing predicates) stays with each
 // hero; only the mechanisms live here.
-import { type Vec3, clamp01, easeInOut, lerp3 } from './math';
-import type { Camera } from './camera';
+import { type Vec3, clamp01, easeInOut, lerp3 } from './math.js';
+import type { Camera } from './camera.js';
 
 export interface CamPose {
   pos: Vec3;

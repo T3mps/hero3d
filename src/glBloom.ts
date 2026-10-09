@@ -3,7 +3,7 @@
 // the first downsample so single hot pixels cannot flicker. The finishing pass
 // MIXES the result in (light is moved, not added), so bloom never brightens the
 // frame overall. `tail` is the coarsest level, a wide veiling-glare term.
-import { FULLSCREEN_VS, program, target, deleteTarget, attrib, bindTexture, into, type Target } from './gl';
+import { FULLSCREEN_VS, program, target, deleteTarget, attrib, bindTexture, into, type Target } from './gl.js';
 
 const DOWN_FS = `#version 300 es
 precision highp float; uniform sampler2D uT; uniform vec2 uTexel; uniform float uKaris; in vec2 vUv; out vec4 o;

@@ -1,5 +1,5 @@
 // Perspective camera + projection for hero canvases. Pure, no DOM access.
-import { type Vec3, sub, cross, dot, norm } from './math';
+import { type Vec3, sub, cross, dot, norm } from './math.js';
 
 export interface Camera {
   pos: Vec3;
