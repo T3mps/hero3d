@@ -32,6 +32,8 @@ export interface Panel {
   fillRectRadial(r: PanelRect, center: PanelPoint, radius: number, stops: [number, string][]): void;
   strokeRect(x: number, y: number, w: number, h: number, style: string, lineWidth?: number): void;
   fillPoly(points: PanelPoint[], style: string): void;
+  /** Outline a closed polygon of plane points. */
+  strokePoly(points: PanelPoint[], style: string, lineWidth?: number): void;
   line(x0: number, y0: number, x1: number, y1: number, style: string, lineWidth?: number): void;
   clipRect(r: PanelRect, fn: () => void): void;
   text(x: number, y: number, px: number, label: string, opts?: TextOpts): void;
@@ -134,6 +136,19 @@ export function createPanelPainter(deps: PanelPainterDeps): PanelPainter {
         ctx.closePath();
         ctx.fill();
       };
+      const strokePoly: Panel['strokePoly'] = (points, style, lineWidth = 1) => {
+        if (points.length < 2) return;
+        ctx.strokeStyle = style;
+        ctx.lineWidth = screenLineWidth(points[0].x, points[0].y, lineWidth);
+        ctx.beginPath();
+        points.forEach((p, i) => {
+          const sp = toScreen(p.x, p.y);
+          if (i === 0) ctx.moveTo(sp.x, sp.y);
+          else ctx.lineTo(sp.x, sp.y);
+        });
+        ctx.closePath();
+        ctx.stroke();
+      };
       const line: Panel['line'] = (x0, y0, x1, y1, style, lineWidth = 1) => {
         const a = toScreen(x0, y0);
         const b = toScreen(x1, y1);
@@ -209,7 +224,7 @@ export function createPanelPainter(deps: PanelPainterDeps): PanelPainter {
         const px = { x: (hit.u * sz.cw - sz.cw / 2) / s + logicalW / 2, y: (hit.v * sz.ch - sz.ch / 2) / s + logicalH / 2 };
         return { ...px, inside: px.x >= 0 && px.x <= logicalW && px.y >= 0 && px.y <= logicalH };
       };
-      return { scale: s, toScreen, fromScreen, fillRect, fillRectRadial, strokeRect, fillPoly, line, clipRect, text, icon, image, imagePerspective, textBlock };
+      return { scale: s, toScreen, fromScreen, fillRect, fillRectRadial, strokeRect, fillPoly, strokePoly, line, clipRect, text, icon, image, imagePerspective, textBlock };
     }
   };
 }

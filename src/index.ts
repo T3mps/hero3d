@@ -15,6 +15,8 @@ export * from './pageToScene.js';
 export * from './glyphs.js';
 export * from './text.js';
 export * from './panel.js';
+export * from './layout.js';
+export * from './figma.js';
 export * from './fonts.js';
 export * from './effects.js';
 export * from './cinematic.js';
