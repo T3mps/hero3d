@@ -1,5 +1,5 @@
 {
-  "name": "@temps/hero3d",
+  "name": "@starworks-dev/hero3d",
   "version": "1.0.0",
   "description": "A small, dependency-free engine for flat, text-bearing planes seen through a moving perspective camera: Canvas 2D heroes, baked WebGL fields and small WebGL 2 heroes on one lifecycle.",
   "license": "MIT",

@@ -1,4 +1,4 @@
-// @temps/hero3d: the public API. Everything exported here is semver-stable;
+// @starworks-dev/hero3d: the public API. Everything exported here is semver-stable;
 // anything not re-exported from this file is internal. Named exports only, and
 // no module has import-time side effects.
 export * from './math.js';
