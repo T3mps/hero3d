@@ -10,6 +10,8 @@
 // perspective, screen = centre + camSpace * f / cz), so GL geometry lines up
 // pixel-for-pixel with 2D-canvas drawing of the same world.
 import { type Camera, NEAR, cameraBasis, focalLength } from './camera.js';
+import { Hero3DGLError } from './errors.js';
+import { compileProgram } from './gl.js';
 
 export interface BakedField {
   resize(cssW: number, cssH: number, dpr: number): void;
@@ -51,18 +53,49 @@ varying vec4 vColor;
 // ONE_MINUS_SRC_ALPHA on a transparent-cleared, premultiplied-alpha canvas)
 void main() { gl_FragColor = vec4(vColor.rgb * vColor.a, vColor.a); }`;
 
-function compile(gl: WebGLRenderingContext, type: number, src: string): WebGLShader | null {
-  const s = gl.createShader(type);
-  if (!s) return null;
-  gl.shaderSource(s, src);
-  gl.compileShader(s);
-  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
-    gl.deleteShader(s);
-    return null;
-  }
-  return s;
+/** The GL side of a field: everything a lost context takes with it. */
+interface FieldGL {
+  prog: WebGLProgram;
+  triBuf: WebGLBuffer;
+  lineBuf: WebGLBuffer;
+  aPos: number;
+  aColor: number;
+  u: (name: string) => WebGLUniformLocation | null;
 }
 
+/** Build the program and the static buffers. Throws a Hero3DGLError after
+ *  deleting whatever it made. */
+function build(gl: WebGLRenderingContext, triangles: Float32Array, lines: Float32Array): FieldGL {
+  const prog = compileProgram(gl, VERT, FRAG);
+  const triBuf = gl.createBuffer();
+  const lineBuf = gl.createBuffer();
+  if (!triBuf || !lineBuf) {
+    if (triBuf) gl.deleteBuffer(triBuf);
+    if (lineBuf) gl.deleteBuffer(lineBuf);
+    gl.deleteProgram(prog);
+    throw new Hero3DGLError('context', 'could not create a buffer (context lost?)');
+  }
+  gl.bindBuffer(gl.ARRAY_BUFFER, triBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, triangles, gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER, lineBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, lines, gl.STATIC_DRAW);
+  const uniforms = new Map<string, WebGLUniformLocation | null>();
+  return {
+    prog,
+    triBuf,
+    lineBuf,
+    aPos: gl.getAttribLocation(prog, 'aPos'),
+    aColor: gl.getAttribLocation(prog, 'aColor'),
+    u: (name) => {
+      if (!uniforms.has(name)) uniforms.set(name, gl.getUniformLocation(prog, name));
+      return uniforms.get(name) ?? null;
+    }
+  };
+}
+
+/** Bake a field onto `canvas` (it takes the canvas's WebGL 1 context).
+ *  Returns null when WebGL is unavailable or setup fails - the documented
+ *  pattern: leave the canvas empty and let the page's CSS fallback show. */
 export function createBakedField(
   canvas: HTMLCanvasElement,
   geom: { triangles: number[]; lines: number[] }
@@ -78,49 +111,28 @@ export function createBakedField(
   }) as WebGLRenderingContext | null;
   if (!gl) return null;
 
-  const vs = compile(gl, gl.VERTEX_SHADER, VERT);
-  const fs = compile(gl, gl.FRAGMENT_SHADER, FRAG);
-  if (!vs || !fs) return null;
-  const prog = gl.createProgram();
-  if (!prog) return null;
-  gl.attachShader(prog, vs);
-  gl.attachShader(prog, fs);
-  gl.linkProgram(prog);
-  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return null;
-
   const STRIDE = 7 * 4; // bytes
-  const triBuf = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, triBuf);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(geom.triangles), gl.STATIC_DRAW);
+  const triangles = new Float32Array(geom.triangles);
+  const lines = new Float32Array(geom.lines);
   const triCount = geom.triangles.length / 7;
-  const lineBuf = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, lineBuf);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(geom.lines), gl.STATIC_DRAW);
   const lineCount = geom.lines.length / 7;
 
-  const aPos = gl.getAttribLocation(prog, 'aPos');
-  const aColor = gl.getAttribLocation(prog, 'aColor');
-  const uCamPos = gl.getUniformLocation(prog, 'uCamPos');
-  const uRight = gl.getUniformLocation(prog, 'uRight');
-  const uUp = gl.getUniformLocation(prog, 'uUp');
-  const uFwd = gl.getUniformLocation(prog, 'uFwd');
-  const uF = gl.getUniformLocation(prog, 'uF');
-  const uHalfView = gl.getUniformLocation(prog, 'uHalfView');
-  const uCenterOff = gl.getUniformLocation(prog, 'uCenterOff');
-  const uNear = gl.getUniformLocation(prog, 'uNear');
-
-  gl.disable(gl.DEPTH_TEST);
-  gl.enable(gl.BLEND);
-  gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); // premultiplied over
+  let res: FieldGL;
+  try {
+    res = build(gl, triangles, lines);
+  } catch (e) {
+    if (e instanceof Hero3DGLError) return null;
+    throw e;
+  }
 
   let cssW = 1;
   let cssH = 1;
 
   const bindAttribs = () => {
-    gl.enableVertexAttribArray(aPos);
-    gl.vertexAttribPointer(aPos, 3, gl.FLOAT, false, STRIDE, 0);
-    gl.enableVertexAttribArray(aColor);
-    gl.vertexAttribPointer(aColor, 4, gl.FLOAT, false, STRIDE, 3 * 4);
+    gl.enableVertexAttribArray(res.aPos);
+    gl.vertexAttribPointer(res.aPos, 3, gl.FLOAT, false, STRIDE, 0);
+    gl.enableVertexAttribArray(res.aColor);
+    gl.vertexAttribPointer(res.aColor, 4, gl.FLOAT, false, STRIDE, 3 * 4);
   };
 
   return {
@@ -132,32 +144,33 @@ export function createBakedField(
       gl.viewport(0, 0, canvas.width, canvas.height);
     },
     render(cam: Camera, centerOff: { x: number; y: number } = { x: 0, y: 0 }) {
+      gl.disable(gl.DEPTH_TEST);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); // premultiplied over
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
       const { right, up, fwd } = cameraBasis(cam);
       const f = focalLength(cam, cssH);
-      gl.useProgram(prog);
-      gl.uniform3f(uCamPos, cam.pos.x, cam.pos.y, cam.pos.z);
-      gl.uniform3f(uRight, right.x, right.y, right.z);
-      gl.uniform3f(uUp, up.x, up.y, up.z);
-      gl.uniform3f(uFwd, fwd.x, fwd.y, fwd.z);
-      gl.uniform1f(uF, f);
-      gl.uniform2f(uHalfView, cssW / 2, cssH / 2);
-      gl.uniform2f(uCenterOff, centerOff.x, centerOff.y);
-      gl.uniform1f(uNear, NEAR);
-      gl.bindBuffer(gl.ARRAY_BUFFER, triBuf);
+      gl.useProgram(res.prog);
+      gl.uniform3f(res.u('uCamPos'), cam.pos.x, cam.pos.y, cam.pos.z);
+      gl.uniform3f(res.u('uRight'), right.x, right.y, right.z);
+      gl.uniform3f(res.u('uUp'), up.x, up.y, up.z);
+      gl.uniform3f(res.u('uFwd'), fwd.x, fwd.y, fwd.z);
+      gl.uniform1f(res.u('uF'), f);
+      gl.uniform2f(res.u('uHalfView'), cssW / 2, cssH / 2);
+      gl.uniform2f(res.u('uCenterOff'), centerOff.x, centerOff.y);
+      gl.uniform1f(res.u('uNear'), NEAR);
+      gl.bindBuffer(gl.ARRAY_BUFFER, res.triBuf);
       bindAttribs();
       gl.drawArrays(gl.TRIANGLES, 0, triCount);
-      gl.bindBuffer(gl.ARRAY_BUFFER, lineBuf);
+      gl.bindBuffer(gl.ARRAY_BUFFER, res.lineBuf);
       bindAttribs();
       gl.drawArrays(gl.LINES, 0, lineCount);
     },
     destroy() {
-      gl.deleteBuffer(triBuf);
-      gl.deleteBuffer(lineBuf);
-      gl.deleteProgram(prog);
-      gl.deleteShader(vs);
-      gl.deleteShader(fs);
+      gl.deleteBuffer(res.triBuf);
+      gl.deleteBuffer(res.lineBuf);
+      gl.deleteProgram(res.prog);
     }
   };
 }

@@ -14,3 +14,4 @@ export * from './fieldGL.js';
 export * from './gl.js';
 export * from './glBloom.js';
 export * from './streamedBake.js';
+export * from './errors.js';
