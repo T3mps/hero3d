@@ -81,4 +81,23 @@ describe('hit-testing (quadUv, Panel.fromScreen)', () => {
     const off = panel.toScreen(-50, 360);
     expect(panel.fromScreen(off.x, off.y)!.inside).toBe(false);
   });
+
+  it('Panel.quadFor gives the screen quad of a plane-px rect', () => {
+    const ctx = fakeCanvas().getContext('2d') as FakeCtx2D;
+    const c2d = ctx as unknown as CanvasRenderingContext2D;
+    // a panel scales uniformly by width, so give it the quad's own aspect to cover it exactly
+    const sz = quadSize(q);
+    const H = (1280 * sz.ch) / sz.cw;
+    const panel = createPanelPainter({ ctx: c2d, glyphs: {} as never, quads: createQuadPainter(c2d), uiFont: 'x', iconFont: 'y' }).panelFor(q, sz, 1280, H);
+    const whole = panel.quadFor(0, 0, 1280, H);
+    for (const k of ['fl', 'fr', 'nl', 'nr'] as const) {
+      expect(whole[k].x).toBeCloseTo(q[k].x, 6);
+      expect(whole[k].y).toBeCloseTo(q[k].y, 6);
+      expect(whole[k].depth).toBeCloseTo(q[k].depth, 6);
+    }
+    const part = panel.quadFor(100, 50, 200, 80);
+    const p = panel.toScreen(300, 130);
+    expect(part.nr.x).toBeCloseTo(p.x, 6);
+    expect(part.nr.y).toBeCloseTo(p.y, 6);
+  });
 });

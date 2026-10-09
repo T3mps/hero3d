@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>hero3d demo</title>
+  <style>
+    :root { color-scheme: dark; --ink: #f2f2f5; --soft: #a3a3ad; --accent: #8b5cf6; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: #07070b; color: var(--ink); font: 16px/1.5 system-ui, sans-serif; }
+    .hero { position: relative; height: 100vh; min-height: 560px; overflow: hidden; }
+    .hero canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    .layer { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+    .copy { position: absolute; left: clamp(16px, 6vw, 96px); bottom: clamp(24px, 10vh, 120px); max-width: 30rem; pointer-events: none; }
+    .copy h1 { font-size: clamp(2rem, 5vw, 3.6rem); line-height: 1.05; margin: 0 0 .6rem; letter-spacing: -.02em; }
+    .copy p { color: var(--soft); margin: 0; font-size: 1.1rem; }
+    .pinned-cta { display: flex; align-items: center; justify-content: center; border-radius: 10px; background: var(--accent); color: #fff;
+      font: 600 22px/1 system-ui, sans-serif; text-decoration: none; border: 0; cursor: pointer; }
+    .pinned-cta:hover { background: #a78bfa; }
+    .pinned-cta:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+    .story { position: relative; height: 300vh; }
+    .stage { position: sticky; top: 0; height: 100vh; overflow: hidden; }
+    .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .story .card { position: absolute; left: 50%; top: 18vh; width: min(520px, 80vw); aspect-ratio: 16 / 10; transform: translateX(-50%);
+      border-radius: 12px; visibility: hidden; }
+    .story .caption { position: absolute; left: 0; right: 0; bottom: 8vh; text-align: center; color: var(--soft); }
+    footer { padding: 4rem 1rem; text-align: center; color: var(--soft); }
+  </style>
+</head>
+<body>
+  <section class="hero" aria-labelledby="t">
+    <canvas id="hero" aria-hidden="true"></canvas>
+    <div class="layer" id="layer"></div>
+    <div class="copy">
+      <h1 id="t">Real interfaces, flying in 3D.</h1>
+      <p>Canvas 2D for the hundreds of tiles; real HTML, pinned by a homography, for the button you can tab to and click.</p>
+    </div>
+  </section>
+
+  <section class="story" id="story" aria-label="From the page into the scene">
+    <div class="stage">
+      <canvas id="story-canvas" aria-hidden="true"></canvas>
+      <div class="card" id="card" aria-hidden="true"></div>
+      <p class="caption">Scroll: the card leaves the page and settles into the scene, perspective-correct all the way.</p>
+    </div>
+  </section>
+
+  <footer>@starworks/hero3d demo · add <code>?tune</code> for the live tuner, <code>?seed=N</code> to pin a variant.</footer>
+  <script type="module" src="./demo.js"></script>
+</body>
+</html>

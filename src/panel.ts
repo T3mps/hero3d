@@ -3,7 +3,8 @@
 // down). Rects and polygons are perspective-correct through quads.ts;
 // text, icons and images ride the glyph painter's plane shear. Domain-
 // agnostic: an editor screen, a HUD, a poster - anything flat on a plane.
-import { type Quad, type QuadSize, type QuadPainter, localPoint } from './quads.js';
+import { type Quad, type QuadSize, type QuadPainter, localPoint, uvOf } from './quads.js';
+import type { Projected } from './camera.js';
 import type { GlyphPainter } from './glyphs.js';
 import { quadUv } from './homography.js';
 import { drawImageWarped, type WarpOpts } from './imageWarp.js';
@@ -26,6 +27,10 @@ export interface Panel {
   /** The inverse: which plane px a screen point (e.g. the pointer) is over, and
    *  whether it lies on the panel. Null if the plane is edge-on. */
   fromScreen(x: number, y: number): (PanelPoint & { inside: boolean }) | null;
+  /** The on-screen quad of a plane-px rect (exact corners; depth and scale
+   *  interpolated): pin an element to part of the panel with pinElement, or
+   *  draw an image there with drawImageOnQuad. */
+  quadFor(x: number, y: number, w: number, h: number): Quad;
   fillRect(x: number, y: number, w: number, h: number, style: string): void;
   /** Fill a plane rect with a radial gradient centred on a plane point; the
    *  gradient is built in screen space from the projected centre and radius. */
@@ -218,13 +223,27 @@ export function createPanelPainter(deps: PanelPainterDeps): PanelPainter {
         });
         return lines.length * lh;
       };
+      const quadFor: Panel['quadFor'] = (x, y, w, h) => {
+        const corner = (px: number, py: number): Projected => {
+          const p = toScreen(px, py);
+          const { lx, ly } = toLocal(px, py);
+          const { u, v } = uvOf(sz, lx, ly);
+          const top = (1 - u) * q.fl.depth + u * q.fr.depth;
+          const bot = (1 - u) * q.nl.depth + u * q.nr.depth;
+          const depth = (1 - v) * top + v * bot;
+          const sTop = (1 - u) * q.fl.scale + u * q.fr.scale;
+          const sBot = (1 - u) * q.nl.scale + u * q.nr.scale;
+          return { x: p.x, y: p.y, depth, scale: (1 - v) * sTop + v * sBot };
+        };
+        return { fl: corner(x, y), fr: corner(x + w, y), nl: corner(x, y + h), nr: corner(x + w, y + h) };
+      };
       const fromScreen: Panel['fromScreen'] = (x, y) => {
         const hit = quadUv(q, x, y);
         if (!hit) return null;
         const px = { x: (hit.u * sz.cw - sz.cw / 2) / s + logicalW / 2, y: (hit.v * sz.ch - sz.ch / 2) / s + logicalH / 2 };
         return { ...px, inside: px.x >= 0 && px.x <= logicalW && px.y >= 0 && px.y <= logicalH };
       };
-      return { scale: s, toScreen, fromScreen, fillRect, fillRectRadial, strokeRect, fillPoly, strokePoly, line, clipRect, text, icon, image, imagePerspective, textBlock };
+      return { scale: s, toScreen, fromScreen, quadFor, fillRect, fillRectRadial, strokeRect, fillPoly, strokePoly, line, clipRect, text, icon, image, imagePerspective, textBlock };
     }
   };
 }
