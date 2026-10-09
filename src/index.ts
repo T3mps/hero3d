@@ -8,6 +8,7 @@ export type { Mat4 } from './mat4.js';
 export * from './camera.js';
 export * from './quads.js';
 export * from './homography.js';
+export * from './imageWarp.js';
 export * from './glyphs.js';
 export * from './panel.js';
 export * from './fonts.js';

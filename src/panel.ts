@@ -6,6 +6,7 @@
 import { type Quad, type QuadSize, type QuadPainter, localPoint } from './quads.js';
 import type { GlyphPainter } from './glyphs.js';
 import { quadUv } from './homography.js';
+import { drawImageWarped, type WarpOpts } from './imageWarp.js';
 
 export interface PanelRect { x: number; y: number; w: number; h: number }
 export interface PanelPoint { x: number; y: number }
@@ -34,7 +35,12 @@ export interface Panel {
   clipRect(r: PanelRect, fn: () => void): void;
   text(x: number, y: number, px: number, label: string, opts?: TextOpts): void;
   icon(x: number, y: number, px: number, codepoint: number, opts?: TextOpts): void;
+  /** An image through the plane's shear: exact for small images on gently
+   *  tilted planes, the cheap path. */
   image(img: CanvasImageSource, x: number, y: number, w: number, h: number, alpha?: number): void;
+  /** An image mapped perspective-correctly (subdivided; see imageWarp.ts):
+   *  meets the plane's edges at any tilt. For screenshots and large images. */
+  imagePerspective(img: CanvasImageSource, x: number, y: number, w: number, h: number, alpha?: number, opts?: WarpOpts): void;
 }
 
 export interface PanelPainterDeps {
@@ -158,13 +164,19 @@ export function createPanelPainter(deps: PanelPainterDeps): PanelPainter {
         glyphs.planeImage(o, exv, eyv, img, w, h);
         ctx.restore();
       };
+      const imagePerspective: Panel['imagePerspective'] = (img, x, y, w, h, alpha = 1, opts = {}) => {
+        ctx.save();
+        ctx.globalAlpha *= alpha;
+        drawImageWarped(ctx, img, (u, v) => toScreen(x + u * w, y + v * h), { seam: alpha < 1 ? 0 : 0.5, ...opts });
+        ctx.restore();
+      };
       const fromScreen: Panel['fromScreen'] = (x, y) => {
         const hit = quadUv(q, x, y);
         if (!hit) return null;
         const px = { x: (hit.u * sz.cw - sz.cw / 2) / s + logicalW / 2, y: (hit.v * sz.ch - sz.ch / 2) / s + logicalH / 2 };
         return { ...px, inside: px.x >= 0 && px.x <= logicalW && px.y >= 0 && px.y <= logicalH };
       };
-      return { scale: s, toScreen, fromScreen, fillRect, fillRectRadial, strokeRect, fillPoly, line, clipRect, text, icon, image };
+      return { scale: s, toScreen, fromScreen, fillRect, fillRectRadial, strokeRect, fillPoly, line, clipRect, text, icon, image, imagePerspective };
     }
   };
 }

@@ -5,6 +5,7 @@
 // sits low inside the trapezoid and slides as perspective changes.
 import type { Vec3 } from './math.js';
 import { type Camera, type Projected, project, projectPoly } from './camera.js';
+import { drawImageWarped, type WarpOpts } from './imageWarp.js';
 
 export interface Quad {
   fl: Projected; // far-left
@@ -201,4 +202,16 @@ export function createQuadPainter(ctx: CanvasRenderingContext2D): QuadPainter {
   };
 
   return { fillQuad, strokeQuad, fillLocalRect, strokeLocalRect, addQuadPath, addLocalRectPath, drawCornerBrackets };
+}
+
+/** Draw an image perspective-correctly onto the quad's uv rect [u0,u1]x[v0,v1]
+ *  (default: the whole quad). */
+export function drawImageOnQuad(
+  ctx: CanvasRenderingContext2D,
+  img: CanvasImageSource,
+  q: Quad,
+  opts: WarpOpts & { u0?: number; v0?: number; u1?: number; v1?: number } = {}
+): void {
+  const { u0 = 0, v0 = 0, u1 = 1, v1 = 1 } = opts;
+  drawImageWarped(ctx, img, (u, v) => quadPoint(q, u0 + (u1 - u0) * u, v0 + (v1 - v0) * v), opts);
 }
