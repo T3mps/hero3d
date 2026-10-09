@@ -37,9 +37,12 @@ export interface HeroCanvasHandle {
   destroy(): void;
 }
 
+/** `ctx` is the 2D context to set up on every resize, or null for a WebGL hero
+ *  (the hero owns its GL state; the scaffold still sizes the canvas, observes it,
+ *  paces the loop and honours reduced motion). */
 export function createHeroCanvas(
   canvas: HTMLCanvasElement,
-  ctx: CanvasRenderingContext2D,
+  ctx: CanvasRenderingContext2D | null,
   opts: HeroCanvasOpts
 ): HeroCanvasHandle {
   const reduced = opts.reduced ?? prefersReducedMotion();
@@ -73,16 +76,18 @@ export function createHeroCanvas(
   const resize = () => {
     canvas.width = Math.max(1, Math.round(canvas.clientWidth * dpr));
     canvas.height = Math.max(1, Math.round(canvas.clientHeight * dpr));
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    // Bilinear ('low') resampling for the baked-label blits - deliberately.
-    // 'high' and 'medium' send every transformed drawImage through Skia's
-    // mipmapped path, which is what made the heroes GPU-bound (measured on an
-    // RTX 3070 at 1920x1080: Arcane ~85 fps with stalls -> 240 flat, Astra
-    // ~33 -> ~175); the labels bake at or above on-screen size, so bilinear
-    // downscaling loses nothing visible and the parity pins hold unchanged.
-    // (Setting canvas size above resets context state, so this comes after.)
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'low';
+    if (ctx) {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      // Bilinear ('low') resampling for the baked-label blits - deliberately.
+      // 'high' and 'medium' send every transformed drawImage through Skia's
+      // mipmapped path, which is what made the heroes GPU-bound (measured on an
+      // RTX 3070 at 1920x1080: Arcane ~85 fps with stalls -> 240 flat, Astra
+      // ~33 -> ~175); the labels bake at or above on-screen size, so bilinear
+      // downscaling loses nothing visible and the parity pins hold unchanged.
+      // (Setting canvas size above resets context state, so this comes after.)
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'low';
+    }
     opts.onResize?.(canvas.clientWidth || 1, canvas.clientHeight || 1, dpr);
     if (!running) opts.draw(performance.now());
   };

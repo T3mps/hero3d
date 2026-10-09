@@ -80,3 +80,48 @@ export function sampleRail<P>(
   }
   return fallback;
 }
+
+/** A key on a smooth multi-channel rail. `v` holds one value per channel. `hold`
+ *  (0..1) scales this key's tangent on the channels named by the rail: 0 flows
+ *  straight through the key, 1 comes to rest on it. */
+export interface RailKey {
+  t: number;
+  v: number[];
+  hold: number;
+}
+
+/**
+ * Catmull-Rom (cardinal Hermite) through time-stamped keys, per channel. Needs
+ * keys k[i-1..i+2] around t (callers keep one key either side); passes exactly
+ * through every key, with continuous velocity unless a key holds.
+ * `holdChannels` lists the channels a key's `hold` applies to.
+ */
+export function sampleSmoothRail(keys: RailKey[], t: number, holdChannels: readonly number[] = []): number[] {
+  let n = 0;
+  while (n < keys.length - 2 && keys[n + 1].t <= t) n += 1;
+  const k0 = keys[Math.max(0, n - 1)], k1 = keys[n], k2 = keys[n + 1], k3 = keys[Math.min(keys.length - 1, n + 2)];
+  const h = k2.t - k1.t, s = clamp01((t - k1.t) / h), s2 = s * s, s3 = s2 * s;
+  const out: number[] = [];
+  for (let c = 0; c < k1.v.length; c += 1) {
+    const held = holdChannels.includes(c);
+    const m1 = ((k2.v[c] - k0.v[c]) / Math.max(1e-6, k2.t - k0.t)) * h * (held ? 1 - k1.hold : 1);
+    const m2 = ((k3.v[c] - k1.v[c]) / Math.max(1e-6, k3.t - k1.t)) * h * (held ? 1 - k2.hold : 1);
+    out.push((2 * s3 - 3 * s2 + 1) * k1.v[c] + (s3 - 2 * s2 + s) * m1 + (-2 * s3 + 3 * s2) * k2.v[c] + (s3 - s2) * m2);
+  }
+  return out;
+}
+
+/**
+ * An endless rail: keys are dealt one at a time by `deal(previous)` as time
+ * reaches them, and keys far behind are dropped, so it runs forever in constant
+ * memory. `first` must hold at least two keys sorted by t. Deterministic when
+ * `deal` draws from a seeded stream.
+ */
+export function createDealtRail(first: RailKey[], deal: (prev: RailKey) => RailKey, holdChannels: readonly number[] = []) {
+  const keys = first.slice();
+  return (t: number): number[] => {
+    while (keys.length < 4 || keys[keys.length - 2].t <= t) keys.push(deal(keys[keys.length - 1]));
+    while (keys.length > 5 && keys[2].t <= t) keys.shift();
+    return sampleSmoothRail(keys, t, holdChannels);
+  };
+}
