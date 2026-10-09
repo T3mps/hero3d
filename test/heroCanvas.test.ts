@@ -105,3 +105,24 @@ describe('context loss and restore (I5)', () => {
     expect(gl.calls.some((c) => c.name === 'drawArrays')).toBe(true);
   });
 });
+
+describe('lifecycle options for GL heroes', () => {
+  it('clampDpr holds the ratio within [min, max]', async () => {
+    const { clampDpr } = await import('../src/lifecycle.js');
+    for (const [dpr, max, min, want] of [[3, 2, 0, 2], [1.5, 2, 0, 1.5], [0.5, 2, 0, 0.5], [0.5, 2, 1, 1], [3, 2, 1, 2]]) {
+      (globalThis as unknown as { window: { devicePixelRatio: number } }).window.devicePixelRatio = dpr;
+      expect(clampDpr(max, min)).toBe(want);
+    }
+  });
+
+  it('an injected clock is what draw() sees, in and out of the loop', () => {
+    const draw = vi.fn();
+    let t = 1234;
+    createHeroCanvas(fakeCanvas() as unknown as HTMLCanvasElement, null, { draw, clock: () => t });
+    expect(draw).toHaveBeenLastCalledWith(1234);
+    env.intersect(true);
+    t = 5000;
+    env.tick(16.7);
+    expect(draw).toHaveBeenLastCalledWith(5000);
+  });
+});

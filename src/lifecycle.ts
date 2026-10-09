@@ -8,6 +8,8 @@
 // - off screen: no frames (an IntersectionObserver starts and stops the loop);
 // - frame cap: MAX_FPS (60) by default, `maxFps` overrides it;
 // - DPR: clampDpr() (at most 2) by default, `dpr` overrides it;
+// - time: draw(now) gets the RAF timestamp (performance.now() for the draws
+//   outside the loop) unless a `clock` is given, e.g. to pin a test frame;
 // - WebGL context lost (on this canvas): the loop stops; when it is restored
 //   the hero's onContextRestored() rebuilds its GL state, then the canvas is
 //   resized and drawn and the loop resumes if the canvas is on screen.
@@ -15,7 +17,9 @@
 export const prefersReducedMotion = () =>
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-export const clampDpr = (max = 2) => Math.min(window.devicePixelRatio || 1, max);
+/** The device pixel ratio held within [min, max]. The default floor of 0 keeps
+ *  a zoomed-out page's sub-1 ratio; pass min = 1 to never render below CSS px. */
+export const clampDpr = (max = 2, min = 0) => Math.max(min, Math.min(window.devicePixelRatio || 1, max));
 
 /** Frame cap for every hero. A hero repainting two full-viewport canvases at
  *  a display's native 144/240 Hz is GPU work the whole browser pays for (the
@@ -40,6 +44,9 @@ export interface HeroCanvasOpts {
   dpr?: number; // pass the hero's own clamped value; defaults to clampDpr()
   reduced?: boolean; // pass the hero's own flag; defaults to prefersReducedMotion()
   maxFps?: number; // defaults to MAX_FPS
+  /** The time passed to draw(), in ms. Defaults to the RAF timestamp. Pacing
+   *  always runs on the real RAF clock; this only changes what the hero sees. */
+  clock?(): number;
   /** This canvas's WebGL context was lost: the loop has stopped. Release any
    *  CPU-side references to GL objects here (they are dead). */
   onContextLost?(): void;
@@ -76,7 +83,7 @@ export function createHeroCanvas(
   const loop = (ts: number) => {
     if (shouldDraw(ts, lastDraw, ts - prevTick, interval)) {
       lastDraw = ts;
-      opts.draw(ts);
+      opts.draw(opts.clock ? opts.clock() : ts);
     }
     prevTick = ts;
     rafId = requestAnimationFrame(loop);
@@ -109,7 +116,7 @@ export function createHeroCanvas(
       ctx.imageSmoothingQuality = 'low';
     }
     opts.onResize?.(canvas.clientWidth || 1, canvas.clientHeight || 1, dpr);
-    if (!running) opts.draw(performance.now());
+    if (!running) opts.draw(opts.clock ? opts.clock() : performance.now());
   };
   const ro = new ResizeObserver(resize);
   ro.observe(canvas);
