@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>hero3d browser tests</title>
+  <style>
+    html, body { margin: 0; background: #000; }
+    .stage { position: relative; width: 800px; height: 600px; }
+    .stage canvas { position: absolute; inset: 0; width: 800px; height: 600px; }
+    .layer { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <div class="stage"><canvas id="c2d"></canvas><div class="layer" id="layer"></div></div>
+  <div class="stage"><canvas id="cgl"></canvas></div>
+  <div class="stage"><canvas id="cworker"></canvas></div>
+  <script type="module">
+    import * as h from '/dist/index.js';
+    window.h = h;
+    window.ready = true;
+  </script>
+</body>
+</html>
