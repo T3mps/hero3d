@@ -8,10 +8,10 @@
   "sideEffects": false,
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/T3mps/hero3d.git"
+    "url": "git+https://github.com/StarworksDev/hero3d.git"
   },
-  "homepage": "https://github.com/T3mps/hero3d#readme",
-  "bugs": "https://github.com/T3mps/hero3d/issues",
+  "homepage": "https://github.com/StarworksDev/hero3d#readme",
+  "bugs": "https://github.com/StarworksDev/hero3d/issues",
   "keywords": [
     "canvas",
     "webgl2",
