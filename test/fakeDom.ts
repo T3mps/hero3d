@@ -96,7 +96,7 @@ export interface GLCall {
 /** A recording WebGL / WebGL 2 context: every method call is logged, enum
  *  constants read back as their own names, create* returns a tagged handle,
  *  and `fail` lets a test make one step fail. */
-export function fakeGL(opts: { fail?: 'compile' | 'link'; maxSamples?: number } = {}) {
+export function fakeGL(opts: { fail?: 'compile' | 'link' | 'framebuffer'; maxSamples?: number } = {}) {
   const calls: GLCall[] = [];
   let handle = 0;
   const live = new Set<string>();
@@ -109,6 +109,7 @@ export function fakeGL(opts: { fail?: 'compile' | 'link'; maxSamples?: number } 
     getUniformLocation: (_p, name) => ({ uniform: name }),
     getParameter: (p) => (p === 'MAX_SAMPLES' ? (opts.maxSamples ?? 4) : 0),
     isContextLost: () => false,
+    checkFramebufferStatus: () => (opts.fail === 'framebuffer' ? 'INCOMPLETE' : 'FRAMEBUFFER_COMPLETE'),
     getExtension: () => null
   };
   const gl = new Proxy({} as Record<string, unknown>, {

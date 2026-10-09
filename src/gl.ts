@@ -130,3 +130,120 @@ export function into(gl: WebGL2RenderingContext, t: Target | null, w?: number, h
   gl.bindFramebuffer(gl.FRAMEBUFFER, t ? t.fb : null);
   gl.viewport(0, 0, t ? t.w : w ?? gl.drawingBufferWidth, t ? t.h : h ?? gl.drawingBufferHeight);
 }
+
+/** The defaults a hero canvas wants: transparent and premultiplied (it composites
+ *  over the page), no default framebuffer AA/depth/stencil (render into targets
+ *  instead), and no context at all on a software rasteriser. */
+export const GL2_DEFAULTS: WebGLContextAttributes = {
+  alpha: true,
+  premultipliedAlpha: true,
+  antialias: false,
+  depth: false,
+  stencil: false,
+  failIfMajorPerformanceCaveat: true
+};
+
+/** A WebGL 2 context on `canvas`, or null when there is none to be had (no
+ *  WebGL 2, a blocklisted GPU, or a software renderer under the default
+ *  failIfMajorPerformanceCaveat). The documented null path: leave the page's
+ *  CSS fallback showing. */
+export function createGL2(canvas: HTMLCanvasElement, attrs: WebGLContextAttributes = {}): WebGL2RenderingContext | null {
+  try {
+    return canvas.getContext('webgl2', { ...GL2_DEFAULTS, ...attrs }) as WebGL2RenderingContext | null;
+  } catch {
+    return null;
+  }
+}
+
+/** A multisampled render target: colour (and optionally depth) renderbuffers.
+ *  Draw into it with `into(gl, t)`, then `resolve` it into a texture target. */
+export interface MsaaTarget {
+  fb: WebGLFramebuffer;
+  color: WebGLRenderbuffer;
+  depth: WebGLRenderbuffer | null;
+  /** The sample count actually used (clamped to MAX_SAMPLES). */
+  samples: number;
+  w: number;
+  h: number;
+  /** Reallocate the storage at a new size (the handles stay the same). */
+  resize(w: number, h: number): void;
+}
+
+export interface MsaaOpts {
+  /** Requested samples, clamped to MAX_SAMPLES. Default 4. */
+  samples?: number;
+  /** Colour renderbuffer format. Default RGBA8. */
+  color?: number;
+  /** true for DEPTH_COMPONENT24, or a depth format; default none. */
+  depth?: boolean | number;
+}
+
+export function msaaTarget(gl: WebGL2RenderingContext, w: number, h: number, opts: MsaaOpts = {}): MsaaTarget {
+  const samples = Math.max(0, Math.min(opts.samples ?? 4, gl.getParameter(gl.MAX_SAMPLES) as number));
+  const colorFormat = opts.color ?? gl.RGBA8;
+  const depthFormat = opts.depth === true ? gl.DEPTH_COMPONENT24 : typeof opts.depth === 'number' ? opts.depth : null;
+  const fb = gl.createFramebuffer();
+  const color = gl.createRenderbuffer();
+  const depth = depthFormat === null ? null : gl.createRenderbuffer();
+  const free = () => {
+    if (fb) gl.deleteFramebuffer(fb);
+    if (color) gl.deleteRenderbuffer(color);
+    if (depth) gl.deleteRenderbuffer(depth);
+  };
+  if (!fb || !color || (depthFormat !== null && !depth)) {
+    free();
+    throw new Hero3DGLError('context', 'could not create an MSAA target (context lost?)');
+  }
+  const t: MsaaTarget = {
+    fb,
+    color,
+    depth,
+    samples,
+    w,
+    h,
+    resize(nw, nh) {
+      t.w = Math.max(1, nw);
+      t.h = Math.max(1, nh);
+      gl.bindRenderbuffer(gl.RENDERBUFFER, color);
+      gl.renderbufferStorageMultisample(gl.RENDERBUFFER, samples, colorFormat, t.w, t.h);
+      if (depth && depthFormat !== null) {
+        gl.bindRenderbuffer(gl.RENDERBUFFER, depth);
+        gl.renderbufferStorageMultisample(gl.RENDERBUFFER, samples, depthFormat, t.w, t.h);
+      }
+    }
+  };
+  t.resize(w, h);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+  gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, color);
+  if (depth) gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depth);
+  const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+  if (status !== gl.FRAMEBUFFER_COMPLETE) {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    free();
+    throw new Hero3DGLError('framebuffer', `MSAA target incomplete (0x${Number(status).toString(16)})`);
+  }
+  return t;
+}
+
+export function deleteMsaaTarget(gl: WebGL2RenderingContext, t: MsaaTarget | null | undefined) {
+  if (!t) return;
+  gl.deleteFramebuffer(t.fb);
+  gl.deleteRenderbuffer(t.color);
+  if (t.depth) gl.deleteRenderbuffer(t.depth);
+}
+
+/** Resolve an MSAA target's colour into a single-sample target of the same
+ *  size (or the canvas when `dst` is null) with blitFramebuffer. */
+export function resolve(gl: WebGL2RenderingContext, src: MsaaTarget, dst: Target | null) {
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, src.fb);
+  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, dst ? dst.fb : null);
+  gl.blitFramebuffer(0, 0, src.w, src.h, 0, 0, src.w, src.h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+}
+
+/** `into` for an MSAA target. */
+export function intoMsaa(gl: WebGL2RenderingContext, t: MsaaTarget) {
+  gl.bindFramebuffer(gl.FRAMEBUFFER, t.fb);
+  gl.viewport(0, 0, t.w, t.h);
+}
