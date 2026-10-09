@@ -5,6 +5,7 @@
 // agnostic: an editor screen, a HUD, a poster - anything flat on a plane.
 import { type Quad, type QuadSize, type QuadPainter, localPoint } from './quads.js';
 import type { GlyphPainter } from './glyphs.js';
+import { quadUv } from './homography.js';
 
 export interface PanelRect { x: number; y: number; w: number; h: number }
 export interface PanelPoint { x: number; y: number }
@@ -20,6 +21,9 @@ export interface Panel {
   /** quad-local px per plane px */
   readonly scale: number;
   toScreen(x: number, y: number): PanelPoint;
+  /** The inverse: which plane px a screen point (e.g. the pointer) is over, and
+   *  whether it lies on the panel. Null if the plane is edge-on. */
+  fromScreen(x: number, y: number): (PanelPoint & { inside: boolean }) | null;
   fillRect(x: number, y: number, w: number, h: number, style: string): void;
   /** Fill a plane rect with a radial gradient centred on a plane point; the
    *  gradient is built in screen space from the projected centre and radius. */
@@ -154,7 +158,13 @@ export function createPanelPainter(deps: PanelPainterDeps): PanelPainter {
         glyphs.planeImage(o, exv, eyv, img, w, h);
         ctx.restore();
       };
-      return { scale: s, toScreen, fillRect, fillRectRadial, strokeRect, fillPoly, line, clipRect, text, icon, image };
+      const fromScreen: Panel['fromScreen'] = (x, y) => {
+        const hit = quadUv(q, x, y);
+        if (!hit) return null;
+        const px = { x: (hit.u * sz.cw - sz.cw / 2) / s + logicalW / 2, y: (hit.v * sz.ch - sz.ch / 2) / s + logicalH / 2 };
+        return { ...px, inside: px.x >= 0 && px.x <= logicalW && px.y >= 0 && px.y <= logicalH };
+      };
+      return { scale: s, toScreen, fromScreen, fillRect, fillRectRadial, strokeRect, fillPoly, line, clipRect, text, icon, image };
     }
   };
 }
