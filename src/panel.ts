@@ -7,6 +7,7 @@ import { type Quad, type QuadSize, type QuadPainter, localPoint } from './quads.
 import type { GlyphPainter } from './glyphs.js';
 import { quadUv } from './homography.js';
 import { drawImageWarped, type WarpOpts } from './imageWarp.js';
+import { createTextMeasurer, layoutSpans, type TextMeasurer, type TextSpan } from './text.js';
 
 export interface PanelRect { x: number; y: number; w: number; h: number }
 export interface PanelPoint { x: number; y: number }
@@ -38,6 +39,9 @@ export interface Panel {
   /** An image through the plane's shear: exact for small images on gently
    *  tilted planes, the cheap path. */
   image(img: CanvasImageSource, x: number, y: number, w: number, h: number, alpha?: number): void;
+  /** Wrapped text, plain or as mixed-style spans, in a `w`-wide column whose
+   *  first baseline is at y + px. Returns the height used, in plane px. */
+  textBlock(x: number, y: number, w: number, px: number, content: string | readonly TextSpan[], opts?: TextBlockOpts): number;
   /** An image mapped perspective-correctly (subdivided; see imageWarp.ts):
    *  meets the plane's edges at any tilt. For screenshots and large images. */
   imagePerspective(img: CanvasImageSource, x: number, y: number, w: number, h: number, alpha?: number, opts?: WarpOpts): void;
@@ -49,6 +53,15 @@ export interface PanelPainterDeps {
   quads: QuadPainter;
   uiFont: string;
   iconFont: string;
+  /** For textBlock; created on first use when absent. */
+  measurer?: TextMeasurer;
+}
+
+export interface TextBlockOpts extends TextOpts {
+  /** Line advance in plane px. Default px * 1.3. */
+  lineHeight?: number;
+  /** Lines past this end in an ellipsis. */
+  maxLines?: number;
 }
 
 export interface PanelPainter {
@@ -170,13 +183,33 @@ export function createPanelPainter(deps: PanelPainterDeps): PanelPainter {
         drawImageWarped(ctx, img, (u, v) => toScreen(x + u * w, y + v * h), { seam: alpha < 1 ? 0 : 0.5, ...opts });
         ctx.restore();
       };
+      const textBlock: Panel['textBlock'] = (x, y, w, px, content, opts = {}) => {
+        const m = (deps.measurer ??= createTextMeasurer());
+        const spans = typeof content === 'string' ? [{ text: content }] : content;
+        const fontOf = (sp: TextSpan) => sp.font ?? opts.font ?? deps.uiFont;
+        const lines = layoutSpans(spans, w, (t, sp) => m.measure(t, px, fontOf(sp)), { maxLines: opts.maxLines });
+        const lh = opts.lineHeight ?? px * 1.3;
+        lines.forEach((line, i) => {
+          const dx = opts.align === 'center' ? (w - line.width) / 2 : opts.align === 'right' || opts.align === 'end' ? w - line.width : 0;
+          for (const r of line.runs) {
+            text(x + dx + r.x, y + px + i * lh, px, r.text, {
+              font: fontOf(r.span),
+              color: r.span.color ?? opts.color,
+              alpha: (r.span.alpha ?? 1) * (opts.alpha ?? 1),
+              baseline: 'alphabetic',
+              align: 'left'
+            });
+          }
+        });
+        return lines.length * lh;
+      };
       const fromScreen: Panel['fromScreen'] = (x, y) => {
         const hit = quadUv(q, x, y);
         if (!hit) return null;
         const px = { x: (hit.u * sz.cw - sz.cw / 2) / s + logicalW / 2, y: (hit.v * sz.ch - sz.ch / 2) / s + logicalH / 2 };
         return { ...px, inside: px.x >= 0 && px.x <= logicalW && px.y >= 0 && px.y <= logicalH };
       };
-      return { scale: s, toScreen, fromScreen, fillRect, fillRectRadial, strokeRect, fillPoly, line, clipRect, text, icon, image, imagePerspective };
+      return { scale: s, toScreen, fromScreen, fillRect, fillRectRadial, strokeRect, fillPoly, line, clipRect, text, icon, image, imagePerspective, textBlock };
     }
   };
 }

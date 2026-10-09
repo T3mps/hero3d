@@ -21,6 +21,7 @@
 // without one painter per face; the family is part of the cache key. The
 // default is the painter-level `opts.font` (required: a CSS font-family list).
 import { type Quad, type QuadSize, localPoint } from './quads.js';
+import { fontShorthand } from './text.js';
 
 export const TEXT_MIN = 0.5; // px: below this a glyph rasterizes to nothing - skip the call
 
@@ -94,7 +95,7 @@ export function createGlyphPainter(
       return hit;
     }
     if (!bakeCtx) return null;
-    const fontSpec = `${bake}px ${font}`;
+    const fontSpec = fontShorthand(bake, font); // a font may lead with its weight/style
     bakeCtx.font = fontSpec;
     bakeCtx.textAlign = align;
     bakeCtx.textBaseline = baseline;

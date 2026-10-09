@@ -13,6 +13,7 @@ export * from './domPlane.js';
 export * from './planes.js';
 export * from './pageToScene.js';
 export * from './glyphs.js';
+export * from './text.js';
 export * from './panel.js';
 export * from './fonts.js';
 export * from './effects.js';
