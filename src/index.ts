@@ -20,6 +20,8 @@ export * from './figma.js';
 export * from './fonts.js';
 export * from './effects.js';
 export * from './cinematic.js';
+export * from './scroll.js';
+export * from './tuner.js';
 export * from './lifecycle.js';
 export * from './fieldGL.js';
 export * from './gl.js';
