@@ -2,6 +2,15 @@
 // resize + intersection observers, reduced-motion handling, and the RAF loop.
 // Under reduced motion the hero draws exactly once per resize and never
 // animates; the hero decides its own frame-time mapping from the flag.
+//
+// The contract, in full:
+// - reduced motion: draw once per resize, never start a loop;
+// - off screen: no frames (an IntersectionObserver starts and stops the loop);
+// - frame cap: MAX_FPS (60) by default, `maxFps` overrides it;
+// - DPR: clampDpr() (at most 2) by default, `dpr` overrides it;
+// - WebGL context lost (on this canvas): the loop stops; when it is restored
+//   the hero's onContextRestored() rebuilds its GL state, then the canvas is
+//   resized and drawn and the loop resumes if the canvas is on screen.
 
 export const prefersReducedMotion = () =>
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -31,6 +40,14 @@ export interface HeroCanvasOpts {
   dpr?: number; // pass the hero's own clamped value; defaults to clampDpr()
   reduced?: boolean; // pass the hero's own flag; defaults to prefersReducedMotion()
   maxFps?: number; // defaults to MAX_FPS
+  /** This canvas's WebGL context was lost: the loop has stopped. Release any
+   *  CPU-side references to GL objects here (they are dead). */
+  onContextLost?(): void;
+  /** The context is back: recreate programs, buffers and textures. Passing
+   *  this opts the canvas into restoration (the loss event is preventDefault-ed);
+   *  without it a lost context stays lost and the canvas keeps its last frame
+   *  or goes blank, as the browser decides. */
+  onContextRestored?(): void;
 }
 
 export interface HeroCanvasHandle {
@@ -52,6 +69,8 @@ export function createHeroCanvas(
 
   let rafId = 0;
   let running = false;
+  let visible = false;
+  let lost = false;
   let lastDraw = -Infinity;
   let prevTick = 0;
   const loop = (ts: number) => {
@@ -63,7 +82,7 @@ export function createHeroCanvas(
     rafId = requestAnimationFrame(loop);
   };
   const start = () => {
-    if (running || reduced) return;
+    if (running || reduced || lost) return;
     running = true;
     prevTick = performance.now();
     rafId = requestAnimationFrame(loop);
@@ -74,6 +93,7 @@ export function createHeroCanvas(
   };
 
   const resize = () => {
+    if (lost) return;
     canvas.width = Math.max(1, Math.round(canvas.clientWidth * dpr));
     canvas.height = Math.max(1, Math.round(canvas.clientHeight * dpr));
     if (ctx) {
@@ -97,18 +117,36 @@ export function createHeroCanvas(
 
   const io = new IntersectionObserver(
     ([entry]) => {
-      if (entry?.isIntersecting) start();
+      visible = !!entry?.isIntersecting;
+      if (visible) start();
       else stop();
     },
     { threshold: 0 }
   );
   io.observe(canvas);
 
+  const onLost = (e: Event) => {
+    if (opts.onContextRestored) e.preventDefault(); // ask the browser to restore it
+    lost = true;
+    stop();
+    opts.onContextLost?.();
+  };
+  const onRestored = () => {
+    lost = false;
+    opts.onContextRestored?.();
+    resize();
+    if (visible) start();
+  };
+  canvas.addEventListener('webglcontextlost', onLost);
+  canvas.addEventListener('webglcontextrestored', onRestored);
+
   return {
     destroy() {
       stop();
       ro.disconnect();
       io.disconnect();
+      canvas.removeEventListener('webglcontextlost', onLost);
+      canvas.removeEventListener('webglcontextrestored', onRestored);
     }
   };
 }

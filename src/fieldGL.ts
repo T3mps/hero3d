@@ -16,6 +16,9 @@ import { compileProgram } from './gl.js';
 export interface BakedField {
   resize(cssW: number, cssH: number, dpr: number): void;
   render(cam: Camera, centerOff?: { x: number; y: number }): void;
+  /** Rebuild the GL side on the canvas's (restored) context. The field does
+   *  this itself on `webglcontextrestored`; false if the rebuild failed. */
+  restore(): boolean;
   destroy(): void;
 }
 
@@ -95,10 +98,15 @@ function build(gl: WebGLRenderingContext, triangles: Float32Array, lines: Float3
 
 /** Bake a field onto `canvas` (it takes the canvas's WebGL 1 context).
  *  Returns null when WebGL is unavailable or setup fails - the documented
- *  pattern: leave the canvas empty and let the page's CSS fallback show. */
+ *  pattern: leave the canvas empty and let the page's CSS fallback show.
+ *
+ *  Context loss is handled here: while lost, render() is a no-op; on restore
+ *  the field rebuilds itself and calls `onRestored` (a hero that only draws on
+ *  demand, e.g. under reduced motion, redraws there). */
 export function createBakedField(
   canvas: HTMLCanvasElement,
-  geom: { triangles: number[]; lines: number[] }
+  geom: { triangles: number[]; lines: number[] },
+  opts: { onRestored?(): void } = {}
 ): BakedField | null {
   const gl = canvas.getContext('webgl', {
     alpha: true,
@@ -127,6 +135,28 @@ export function createBakedField(
 
   let cssW = 1;
   let cssH = 1;
+  let lost = false;
+
+  const restore = (): boolean => {
+    try {
+      res = build(gl, triangles, lines);
+    } catch (e) {
+      if (e instanceof Hero3DGLError) return false;
+      throw e;
+    }
+    lost = false;
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    return true;
+  };
+  const onLost = (e: Event) => {
+    e.preventDefault(); // ask the browser to restore the context
+    lost = true;
+  };
+  const onRestored = () => {
+    if (restore()) opts.onRestored?.();
+  };
+  canvas.addEventListener('webglcontextlost', onLost);
+  canvas.addEventListener('webglcontextrestored', onRestored);
 
   const bindAttribs = () => {
     gl.enableVertexAttribArray(res.aPos);
@@ -144,6 +174,7 @@ export function createBakedField(
       gl.viewport(0, 0, canvas.width, canvas.height);
     },
     render(cam: Camera, centerOff: { x: number; y: number } = { x: 0, y: 0 }) {
+      if (lost) return;
       gl.disable(gl.DEPTH_TEST);
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); // premultiplied over
@@ -167,7 +198,11 @@ export function createBakedField(
       bindAttribs();
       gl.drawArrays(gl.LINES, 0, lineCount);
     },
+    restore,
     destroy() {
+      canvas.removeEventListener('webglcontextlost', onLost);
+      canvas.removeEventListener('webglcontextrestored', onRestored);
+      if (lost) return; // a lost context's objects are already gone
       gl.deleteBuffer(res.triBuf);
       gl.deleteBuffer(res.lineBuf);
       gl.deleteProgram(res.prog);

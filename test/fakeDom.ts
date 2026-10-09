@@ -133,3 +133,45 @@ export function fakeGL(opts: { fail?: 'compile' | 'link'; maxSamples?: number } 
   });
   return gl as unknown as WebGL2RenderingContext & { calls: GLCall[]; live: Set<string> };
 }
+
+/** The browser pieces the lifecycle uses: matchMedia, devicePixelRatio, the two
+ *  observers and a manually-driven requestAnimationFrame. */
+export function installHeroEnv(env: { reduced?: boolean; dpr?: number } = {}) {
+  let rafQueue: { id: number; cb: FrameRequestCallback }[] = [];
+  let nextId = 0;
+  let io: ((entries: { isIntersecting: boolean }[]) => void) | null = null;
+  let ro: (() => void) | null = null;
+  vi.stubGlobal('window', {
+    devicePixelRatio: env.dpr ?? 1,
+    matchMedia: (q: string) => ({ matches: q.includes('reduce') ? !!env.reduced : false })
+  });
+  vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+    rafQueue.push({ id: ++nextId, cb });
+    return nextId;
+  });
+  vi.stubGlobal('cancelAnimationFrame', (id: number) => {
+    rafQueue = rafQueue.filter((f) => f.id !== id);
+  });
+  vi.stubGlobal('ResizeObserver', class {
+    constructor(cb: () => void) { ro = cb; }
+    observe() {}
+    disconnect() { ro = null; }
+  });
+  vi.stubGlobal('IntersectionObserver', class {
+    constructor(cb: (entries: { isIntersecting: boolean }[]) => void) { io = cb; }
+    observe() {}
+    disconnect() { io = null; }
+  });
+  return {
+    /** Run one RAF tick at `ts`. */
+    tick(ts: number) {
+      const due = rafQueue;
+      rafQueue = [];
+      for (const f of due) f.cb(ts);
+    },
+    pending: () => rafQueue.length,
+    intersect: (isIntersecting: boolean) => io?.([{ isIntersecting }]),
+    resize: () => ro?.(),
+    restore: () => vi.unstubAllGlobals()
+  };
+}
