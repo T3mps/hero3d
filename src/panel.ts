@@ -200,7 +200,7 @@ export function createPanelPainter(deps: PanelPainterDeps): PanelPainter {
       const imagePerspective: Panel['imagePerspective'] = (img, x, y, w, h, alpha = 1, opts = {}) => {
         ctx.save();
         ctx.globalAlpha *= alpha;
-        drawImageWarped(ctx, img, (u, v) => toScreen(x + u * w, y + v * h), { seam: alpha < 1 ? 0 : 0.5, ...opts });
+        drawImageWarped(ctx, img, (u, v) => toScreen(x + u * w, y + v * h), opts);
         ctx.restore();
       };
       const textBlock: Panel['textBlock'] = (x, y, w, px, content, opts = {}) => {

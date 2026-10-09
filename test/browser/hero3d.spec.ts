@@ -81,6 +81,60 @@ test('a warped image lands perspective-correctly; the affine shear does not', as
   expect(r.affine).toBeLessThan(1);
 });
 
+test('a warped image has no seams: a solid image over a contrasting ground stays solid inside', async ({ page }) => {
+  const r = await page.evaluate(`(() => {
+    // a steep, downscaled case: many cells, each much smaller on screen than in the source
+    const cam = { pos: { x: 0, y: 2.4, z: -7 }, target: { x: 0, y: 0.6, z: 2 }, fov: 0.8 };
+    const q = h.quadFromCorners(cam, { fl: { x: -2.5, y: 0, z: 6 }, fr: { x: 2.5, y: 0, z: 6 }, nl: { x: -2.5, y: 0, z: 2 }, nr: { x: 2.5, y: 0, z: 2 } }, 800, 600);
+    const img = document.createElement('canvas');
+    img.width = 1040; img.height = 650;
+    const g = img.getContext('2d');
+    g.fillStyle = '#c050e0'; g.fillRect(0, 0, 1040, 650);
+    const canvas = document.getElementById('c2d');
+    canvas.width = 800; canvas.height = 600;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 800, 600);
+    h.drawImageOnQuad(ctx, img, q);
+    let bad = 0, n = 0;
+    for (let v = 0.03; v < 0.97; v += 0.0125) for (let u = 0.03; u < 0.97; u += 0.0125) {
+      const p = h.quadPoint(q, u, v);
+      const [r, gg, b] = ctx.getImageData(Math.floor(p.x), Math.floor(p.y), 1, 1).data;
+      n++;
+      if (Math.abs(r - 0xc0) + Math.abs(gg - 0x50) + Math.abs(b - 0xe0) > 12) bad++;
+    }
+    return { bad, n, cells: h.warpDivisions((u, v) => h.quadPoint(q, u, v)) };
+  })()`) as { bad: number; n: number; cells: number };
+  expect(r.cells).toBeGreaterThan(2);
+  expect(r.n).toBeGreaterThan(5000);
+  expect(r.bad).toBe(0);
+});
+
+test('a translucent warped image composites once: uniform inside, no double-blended seams', async ({ page }) => {
+  const r = await page.evaluate(`(() => {
+    const cam = { pos: { x: 0, y: 2.4, z: -7 }, target: { x: 0, y: 0.6, z: 2 }, fov: 0.8 };
+    const q = h.quadFromCorners(cam, { fl: { x: -2.5, y: 0, z: 6 }, fr: { x: 2.5, y: 0, z: 6 }, nl: { x: -2.5, y: 0, z: 2 }, nr: { x: 2.5, y: 0, z: 2 } }, 800, 600);
+    const img = document.createElement('canvas'); img.width = 1040; img.height = 650;
+    const g = img.getContext('2d'); g.fillStyle = '#c050e0'; g.fillRect(0, 0, 1040, 650);
+    const canvas = document.getElementById('c2d'); canvas.width = 1600; canvas.height = 1200;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.setTransform(2, 0, 0, 2, 0, 0); // a DPR transform, as heroes have
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 800, 600);
+    ctx.globalAlpha = 0.5;
+    h.drawImageOnQuad(ctx, img, q);
+    ctx.globalAlpha = 1;
+    let lo = 999, hi = 0;
+    for (let v = 0.03; v < 0.97; v += 0.0125) for (let u = 0.03; u < 0.97; u += 0.0125) {
+      const p = h.quadPoint(q, u, v);
+      const r = ctx.getImageData(Math.floor(p.x * 2), Math.floor(p.y * 2), 1, 1).data[0];
+      lo = Math.min(lo, r); hi = Math.max(hi, r);
+    }
+    return { lo, hi };
+  })()`) as { lo: number; hi: number };
+  // half of 0xc0 over black, everywhere: an overlap would read ~3/4 of it
+  expect(r.lo).toBeGreaterThanOrEqual(94);
+  expect(r.hi).toBeLessThanOrEqual(98);
+});
+
 test('WebGL 2: an MSAA scene with depth resolves into a texture and reaches the canvas', async ({ page }) => {
   const r = await page.evaluate(`(() => {
     const canvas = document.getElementById('cgl');

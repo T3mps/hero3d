@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Camera } from '../src/camera.js';
-import { drawImageWarped, sourceSize, warpDivisions } from '../src/imageWarp.js';
+import { drawImageWarped, growTriangle, sourceSize, warpDivisions } from '../src/imageWarp.js';
 import { quadFromCorners, quadPoint } from '../src/quads.js';
 import { fakeCanvas, type FakeCtx2D } from './fakeDom.js';
 
@@ -32,6 +32,28 @@ describe('warpDivisions', () => {
         worst = Math.max(worst, Math.hypot(m.x - (a.x + c.x) / 2, m.y - (a.y + c.y) / 2));
       }
     expect(worst).toBeLessThanOrEqual(tol);
+  });
+});
+
+describe('growTriangle', () => {
+  const lineDist = (p: { x: number; y: number }, a: { x: number; y: number }, b: { x: number; y: number }) =>
+    Math.abs((b.x - a.x) * (a.y - p.y) - (a.x - p.x) * (b.y - a.y)) / Math.hypot(b.x - a.x, b.y - a.y);
+
+  it('offsets every edge outward by exactly the margin', () => {
+    const tri = [{ x: 0, y: 0 }, { x: 30, y: 15 }, { x: 0, y: 30 }];
+    const g = growTriangle(tri, 0.75);
+    for (let i = 0; i < 3; i += 1) {
+      const a = tri[i], b = tri[(i + 1) % 3];
+      expect(lineDist(g[i], a, b)).toBeCloseTo(0.75, 9);
+      expect(lineDist(g[(i + 1) % 3], a, b)).toBeCloseTo(0.75, 9);
+    }
+    expect(growTriangle(tri, 0)).toEqual(tri);
+  });
+
+  it('caps the corner of a needle-thin triangle at 4x the margin', () => {
+    const tri = [{ x: 0, y: 0 }, { x: 100, y: 2 }, { x: 0, y: 4 }];
+    const g = growTriangle(tri, 0.75);
+    g.forEach((p, i) => expect(Math.hypot(p.x - tri[i].x, p.y - tri[i].y)).toBeLessThanOrEqual(3 + 1e-9));
   });
 });
 
