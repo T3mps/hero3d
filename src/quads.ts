@@ -4,7 +4,7 @@
 // exact projection of the corresponding plane point - plain bilinear blending
 // sits low inside the trapezoid and slides as perspective changes.
 import type { Vec3 } from './math.js';
-import { type Camera, type Projected, project } from './camera.js';
+import { type Camera, type Projected, project, projectPoly } from './camera.js';
 
 export interface Quad {
   fl: Projected; // far-left
@@ -18,7 +18,9 @@ export interface QuadSize {
   ch: number;
 }
 
-/** Project a quad's 4 world corners; null if any falls behind the near plane. */
+/** Project a quad's 4 world corners; null if any falls behind the near plane.
+ *  All-or-nothing by contract: a quad the camera is flying through vanishes
+ *  whole. Use quadFromCornersClipped when the fill should stay on screen. */
 export const quadFromCorners = (
   cam: Camera,
   corners: { fl: Vec3; fr: Vec3; nl: Vec3; nr: Vec3 },
@@ -31,6 +33,31 @@ export const quadFromCorners = (
   const nr = project(cam, corners.nr, viewW, viewH);
   if (!fl || !fr || !nl || !nr) return null;
   return { fl, fr, nl, nr };
+};
+
+export interface ClippedQuad {
+  /** The visible outline, clipped at the near plane, in fl, fr, nr, nl winding.
+   *  Fill it; it has 3 to 5 vertices. */
+  poly: Projected[];
+  /** The whole quad when no corner was clipped. Null when the near plane cut
+   *  it: a clipped quad is no longer a quad, so the interior mapping
+   *  (quadPoint, localPoint, plane text) is unavailable and the caller should
+   *  skip anything mapped through it. */
+  quad: Quad | null;
+}
+
+/** Project a quad's corners, clipped at the near plane instead of dropped:
+ *  null only when the quad is entirely behind it. */
+export const quadFromCornersClipped = (
+  cam: Camera,
+  corners: { fl: Vec3; fr: Vec3; nl: Vec3; nr: Vec3 },
+  viewW: number,
+  viewH: number
+): ClippedQuad | null => {
+  const quad = quadFromCorners(cam, corners, viewW, viewH);
+  if (quad) return { poly: [quad.fl, quad.fr, quad.nr, quad.nl], quad };
+  const poly = projectPoly(cam, [corners.fl, corners.fr, corners.nr, corners.nl], viewW, viewH);
+  return poly.length >= 3 ? { poly, quad: null } : null;
 };
 
 // World-parameter t along a projected segment: screen coords are weighted
