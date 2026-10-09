@@ -9,7 +9,7 @@
 // The vertex shader reproduces camera.ts's project() exactly (look-at basis +
 // perspective, screen = centre + camSpace * f / cz), so GL geometry lines up
 // pixel-for-pixel with 2D-canvas drawing of the same world.
-import { type Camera, cameraBasis, focalLength } from './camera.js';
+import { type Camera, NEAR, cameraBasis, focalLength } from './camera.js';
 
 export interface BakedField {
   resize(cssW: number, cssH: number, dpr: number): void;
@@ -27,6 +27,7 @@ uniform vec3 uFwd;
 uniform float uF;
 uniform vec2 uHalfView; // css px / 2
 uniform vec2 uCenterOff; // css px shift of the projection centre (x right, y down)
+uniform float uNear; // camera.ts NEAR
 varying vec4 vColor;
 void main() {
   vec3 d = aPos - uCamPos;
@@ -34,10 +35,12 @@ void main() {
   float cx = dot(d, uRight);
   float cy = dot(d, uUp);
   // screen-space offset in px, then to NDC; multiply by cz and set w=cz so the
-  // perspective divide reproduces project()'s cx*f/cz exactly.
+  // perspective divide reproduces project()'s cx*f/cz exactly. z = cz - 2*near
+  // puts the GPU's near test (-w <= z) at cz >= near, the CPU path's NEAR; the
+  // far test (z <= w) always holds and depth testing is off, so z does nothing else.
   float ndcX = (cx * uF / cz + uCenterOff.x) / uHalfView.x;
   float ndcY = (cy * uF / cz - uCenterOff.y) / uHalfView.y;
-  gl_Position = vec4(ndcX * cz, ndcY * cz, 0.0, cz);
+  gl_Position = vec4(ndcX * cz, ndcY * cz, cz - 2.0 * uNear, cz);
   vColor = aColor;
 }`;
 
@@ -104,6 +107,7 @@ export function createBakedField(
   const uF = gl.getUniformLocation(prog, 'uF');
   const uHalfView = gl.getUniformLocation(prog, 'uHalfView');
   const uCenterOff = gl.getUniformLocation(prog, 'uCenterOff');
+  const uNear = gl.getUniformLocation(prog, 'uNear');
 
   gl.disable(gl.DEPTH_TEST);
   gl.enable(gl.BLEND);
@@ -140,6 +144,7 @@ export function createBakedField(
       gl.uniform1f(uF, f);
       gl.uniform2f(uHalfView, cssW / 2, cssH / 2);
       gl.uniform2f(uCenterOff, centerOff.x, centerOff.y);
+      gl.uniform1f(uNear, NEAR);
       gl.bindBuffer(gl.ARRAY_BUFFER, triBuf);
       bindAttribs();
       gl.drawArrays(gl.TRIANGLES, 0, triCount);

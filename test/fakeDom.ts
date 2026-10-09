@@ -87,3 +87,49 @@ export function installDocument(): { created: FakeCanvas[]; restore(): void } {
   });
   return { created, restore: () => vi.unstubAllGlobals() };
 }
+
+export interface GLCall {
+  name: string;
+  args: unknown[];
+}
+
+/** A recording WebGL / WebGL 2 context: every method call is logged, enum
+ *  constants read back as their own names, create* returns a tagged handle,
+ *  and `fail` lets a test make one step fail. */
+export function fakeGL(opts: { fail?: 'compile' | 'link'; maxSamples?: number } = {}) {
+  const calls: GLCall[] = [];
+  let handle = 0;
+  const live = new Set<string>();
+  const results: Record<string, (...args: unknown[]) => unknown> = {
+    getShaderParameter: () => opts.fail !== 'compile',
+    getProgramParameter: () => opts.fail !== 'link',
+    getShaderInfoLog: () => 'fake compile error',
+    getProgramInfoLog: () => 'fake link error',
+    getAttribLocation: () => 0,
+    getUniformLocation: (_p, name) => ({ uniform: name }),
+    getParameter: (p) => (p === 'MAX_SAMPLES' ? (opts.maxSamples ?? 4) : 0),
+    isContextLost: () => false,
+    getExtension: () => null
+  };
+  const gl = new Proxy({} as Record<string, unknown>, {
+    get(_t, prop) {
+      if (typeof prop !== 'string') return undefined;
+      if (prop === 'calls') return calls;
+      if (prop === 'live') return live;
+      if (prop === 'drawingBufferWidth') return 300;
+      if (prop === 'drawingBufferHeight') return 150;
+      if (/^[A-Z0-9_]+$/.test(prop)) return prop;
+      return (...args: unknown[]) => {
+        calls.push({ name: prop, args });
+        if (prop.startsWith('create')) {
+          const h = `${prop.slice(6)}#${++handle}`;
+          live.add(h);
+          return h;
+        }
+        if (prop.startsWith('delete')) live.delete(args[0] as string);
+        return results[prop]?.(...args);
+      };
+    }
+  });
+  return gl as unknown as WebGL2RenderingContext & { calls: GLCall[]; live: Set<string> };
+}
