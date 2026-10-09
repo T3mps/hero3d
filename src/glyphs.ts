@@ -13,7 +13,7 @@
 // on-screen pixels and only ever downsampled (bilinear: the lifecycle keeps
 // imageSmoothingQuality at 'low' on purpose, see lifecycle.ts) - never
 // upscaled in the common range. Small labels bake small (cheap); only
-// the few large ones bake large. The cache is capped for memory. Colour is
+// the few large ones bake large. The cache is capped for memory and evicts the least recently used label. Colour is
 // baked solid; the per-call alpha rides globalAlpha.
 //
 // Every draw call accepts an optional `font` (a CSS font-family list) so one
@@ -85,7 +85,14 @@ export function createGlyphPainter(
   ) => {
     const key = `${rgb}|${align}|${baseline}|${bake}|${text}|${font}`;
     const hit = glyphCache.get(key);
-    if (hit !== undefined) return hit;
+    if (hit !== undefined) {
+      // LRU: re-insert on every hit (a Map iterates in insertion order), so
+      // eviction below takes the least recently USED label - a label drawn
+      // every frame is never the one re-baked during a long camera move.
+      glyphCache.delete(key);
+      glyphCache.set(key, hit);
+      return hit;
+    }
     if (!bakeCtx) return null;
     const fontSpec = `${bake}px ${font}`;
     bakeCtx.font = fontSpec;
