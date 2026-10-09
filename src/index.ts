@@ -3,6 +3,8 @@
 // no module has import-time side effects.
 export * from './math.js';
 export * from './color.js';
+export * as mat4 from './mat4.js';
+export type { Mat4 } from './mat4.js';
 export * from './camera.js';
 export * from './quads.js';
 export * from './glyphs.js';
@@ -13,6 +15,7 @@ export * from './cinematic.js';
 export * from './lifecycle.js';
 export * from './fieldGL.js';
 export * from './gl.js';
+export * from './mesh.js';
 export * from './glBloom.js';
 export * from './streamedBake.js';
 export * from './errors.js';
