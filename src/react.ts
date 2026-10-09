@@ -1,4 +1,4 @@
-// React bindings: `import { useHero, HeroCanvas } from '@starworks/hero3d/react'`.
+// React bindings: `import { useHero, HeroCanvas } from '@temps/hero3d/react'`.
 // A separate entry point (react is an optional peer dependency); the package
 // root never imports React.
 import { createElement, useCallback, useEffect, useRef, type CanvasHTMLAttributes, type RefCallback } from 'react';

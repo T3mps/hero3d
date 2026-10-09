@@ -1,4 +1,4 @@
-# @starworks/hero3d
+# @temps/hero3d
 
 **Real interfaces, flying in 3D: sharp, clickable, accessible, and tiny.**
 
@@ -22,22 +22,22 @@ It runs the hero canvases on [starworks](https://github.com/StarworksDev/Starwor
 ## Install
 
 ```sh
-npm i @starworks/hero3d
+npm i @temps/hero3d
 ```
 
 ESM only, with TypeScript types. Import from the package root, or a single module by path. React bindings are a separate entry point (`react` is an optional peer dependency):
 
 ```ts
-import { createHeroCanvas, pinElement } from '@starworks/hero3d';
-import { project } from '@starworks/hero3d/camera';
-import { useHero, HeroCanvas } from '@starworks/hero3d/react';
+import { createHeroCanvas, pinElement } from '@temps/hero3d';
+import { project } from '@temps/hero3d/camera';
+import { useHero, HeroCanvas } from '@temps/hero3d/react';
 ```
 
 Developing the library alongside a site:
 
 ```sh
 cd hero3d && npm link            # once
-cd ../my-site && npm link @starworks/hero3d
+cd ../my-site && npm link @temps/hero3d
 cd ../hero3d && npx tsc -p tsconfig.build.json --watch
 ```
 
@@ -92,7 +92,7 @@ Everything exported from the package root is the public API, under semver. Every
 import {
   createHeroCanvas, createQuadPainter, createGlyphPainter, quadFromCorners, quadSize,
   clampDpr, type Camera
-} from '@starworks/hero3d';
+} from '@temps/hero3d';
 
 export function mountTiles(canvas: HTMLCanvasElement) {
   const ctx = canvas.getContext('2d');
@@ -132,7 +132,7 @@ Under reduced motion `draw` runs once per resize, so derive the frame from `now`
 Thousands of dim background tiles are fill-heavy in Canvas 2D at 2x DPR. Bake them once into triangles and lines on a sibling canvas behind the 2D one; each frame only the camera uniforms change. The field's vertex shader reproduces `project()` exactly, so the two canvases line up to the pixel.
 
 ```ts
-import { createBakedField, createHeroCanvas, clampDpr } from '@starworks/hero3d';
+import { createBakedField, createHeroCanvas, clampDpr } from '@temps/hero3d';
 
 // x, y, z, r, g, b, a per vertex (fog folded into alpha)
 const field = createBakedField(glCanvas, { triangles, lines }, { onRestored: () => redraw() });
@@ -158,7 +158,7 @@ import {
   createGL2, createHeroCanvas, clampDpr, program, gridMesh, msaaTarget, resolve, target, deleteTarget,
   fullscreenTriangle, attrib, bindTexture, into, intoMsaa, mat4, FULLSCREEN_VS, Hero3DGLError,
   type Program, type GridMesh, type MsaaTarget, type Target
-} from '@starworks/hero3d';
+} from '@temps/hero3d';
 
 export function mountSheet(canvas: HTMLCanvasElement) {
   const gl = createGL2(canvas);
@@ -269,7 +269,7 @@ const off = createScrollTimeline(section, (p) => {
 ```
 
 ```tsx
-import { HeroCanvas } from '@starworks/hero3d/react';
+import { HeroCanvas } from '@temps/hero3d/react';
 <HeroCanvas mount={mountTiles} params={{ seed }} className="hero" />
 ```
 

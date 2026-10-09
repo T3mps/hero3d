@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to `@starworks/hero3d`. The project follows [semver](https://semver.org); the public API is everything exported from the package root.
+All notable changes to `@temps/hero3d`. The project follows [semver](https://semver.org); the public API is everything exported from the package root.
 
 ## 1.0.0 - 2026-10-09
 
@@ -49,5 +49,5 @@ The first standalone release: the engine behind the Starworks heroes, extracted 
 - `quality`: `createQualityGovernor` and `createFrameWindow`; `createHeroCanvas({ adaptive, onStats })`.
 - `worker`: `createWorkerHero` / `serveWorkerHero` (OffscreenCanvas).
 - `capture`: `seedFrom`, `captureFrame`, `posterFrame`, `exportFrames`, `recordVideo`.
-- `mount`: `HeroMount`, `mountHero`, `heroAction` (Svelte), `defineHeroElement`; `@starworks/hero3d/react`: `useHero`, `<HeroCanvas>` (react is an optional peer).
+- `mount`: `HeroMount`, `mountHero`, `heroAction` (Svelte), `defineHeroElement`; `@temps/hero3d/react`: `useHero`, `<HeroCanvas>` (react is an optional peer).
 - A Playwright suite in real Chromium (`npm run test:browser`) and a demo (`npm run demo`).
