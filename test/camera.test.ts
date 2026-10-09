@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cameraBasis, focalLength, project, projectPoly, projectSeg, type Camera } from '../src/camera.js';
+import { NEAR, cameraBasis, focalLength, project, projectPoly, projectSeg, type Camera } from '../src/camera.js';
 import { dot } from '../src/math.js';
 
 // Looking straight down +z from the origin, 90 degree vertical fov, 800x600 view.
@@ -38,6 +38,18 @@ describe('camera basis and projection', () => {
   it('rejects points behind the camera', () => {
     expect(project(cam, { x: 0, y: 0, z: -1 }, W, H)).toBeNull();
   });
+
+  it('uses one near plane: project() and the clipped projectors agree on what is visible', () => {
+    // between 0.40 and NEAR the two paths used to disagree
+    for (const z of [0.3, 0.41, 0.44, NEAR - 1e-9]) {
+      expect(project(cam, { x: 0, y: 0, z }, W, H)).toBeNull();
+      expect(projectSeg(cam, { x: 0, y: 0, z }, { x: 0.1, y: 0, z }, W, H)).toBeNull();
+    }
+    for (const z of [NEAR, 0.5, 3]) {
+      expect(project(cam, { x: 0, y: 0, z }, W, H)).not.toBeNull();
+      expect(projectSeg(cam, { x: 0, y: 0, z }, { x: 0.1, y: 0, z }, W, H)).not.toBeNull();
+    }
+  });
 });
 
 describe('near-plane clipping', () => {
@@ -52,13 +64,13 @@ describe('near-plane clipping', () => {
     const straddle = front.map((p) => ({ ...p, z: p.z - 3 })); // z from -1 to 1
     const clipped = projectPoly(cam, straddle, W, H);
     expect(clipped).toHaveLength(4);
-    expect(clipped.filter((p) => Math.abs(p.depth - 0.45) < 1e-12)).toHaveLength(2);
+    expect(clipped.filter((p) => Math.abs(p.depth - NEAR) < 1e-12)).toHaveLength(2);
     expect(projectPoly(cam, front.map((p) => ({ ...p, z: -p.z })), W, H)).toEqual([]);
   });
 
   it('projectSeg clips the end behind the near plane and drops a segment fully behind', () => {
     const seg = projectSeg(cam, { x: 0, y: 1, z: -2 }, { x: 0, y: 1, z: 3 }, W, H)!;
-    expect(seg[0].depth).toBeCloseTo(0.45, 12);
+    expect(seg[0].depth).toBeCloseTo(NEAR, 12);
     expect(seg[1].depth).toBeCloseTo(3, 12);
     expect(projectSeg(cam, { x: 0, y: 0, z: -2 }, { x: 0, y: 0, z: 0.1 }, W, H)).toBeNull();
   });

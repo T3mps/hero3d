@@ -28,6 +28,11 @@ export const cameraBasis = (cam: Camera): CameraBasis => {
   return { right, up, fwd };
 };
 
+/** The near plane, in camera-space depth. Every projector here (and the GL
+ *  field's vertex shader) treats geometry nearer than this as behind the
+ *  camera, so the clipped and unclipped paths agree on what is visible. */
+export const NEAR = 0.45;
+
 export const focalLength = (cam: Camera, viewH: number) => (0.5 * viewH) / Math.tan(cam.fov / 2);
 
 /** Perspective-project a world point. Returns null behind the near plane. */
@@ -35,7 +40,7 @@ export function project(cam: Camera, p: Vec3, viewW: number, viewH: number): Pro
   const { right, up, fwd } = cameraBasis(cam);
   const d = sub(p, cam.pos);
   const cz = dot(d, fwd);
-  if (cz < 0.4) return null;
+  if (cz < NEAR) return null;
   const f = focalLength(cam, viewH);
   return {
     x: viewW / 2 + (dot(d, right) * f) / cz,
@@ -49,7 +54,6 @@ export function project(cam: Camera, p: Vec3, viewW: number, viewH: number): Pro
 // during low camera flyovers (all-or-nothing gating makes them visibly
 // blink out mid-frame). Both clip in camera space at z = NEAR and project
 // the clipped geometry.
-export const NEAR = 0.45;
 
 const toCamSpace = (cam: Camera, pts: Vec3[]): Vec3[] => {
   const { right, up, fwd } = cameraBasis(cam);
