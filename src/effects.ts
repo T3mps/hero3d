@@ -1,8 +1,17 @@
 // Shared visual effects for hero canvases: an accent glow sprite, a cached
 // quarter-res vignette, and camera-depth fading.
+import { type RGB, rgba } from './color.js';
 
-/** Depth-keyed brightness falloff. Defaults are the Astra hero's exact constants. */
-export const depthFade = (d: number, min = 0.4, falloff = 0.055, base = 1.5) =>
+/** A linear brightness falloff with camera depth: `base - depth * falloff`,
+ *  held within [min, 1]. The tuning belongs to the hero. */
+export interface DepthFade {
+  min: number;
+  falloff: number;
+  base: number;
+}
+
+/** Depth-keyed brightness falloff. */
+export const depthFade = (d: number, { min, falloff, base }: DepthFade) =>
   Math.min(1, Math.max(min, base - d * falloff));
 
 export interface Effects {
@@ -12,7 +21,8 @@ export interface Effects {
   drawVignette(w: number, h: number): void;
 }
 
-export function createEffects(ctx: CanvasRenderingContext2D, accent: string): Effects {
+/** `accent` tints the glow sprite (see resolveCssColor to read it from CSS). */
+export function createEffects(ctx: CanvasRenderingContext2D, accent: RGB): Effects {
   // radial accent glow, baked once and blitted wherever a bloom is needed
   const glow = document.createElement('canvas');
   glow.width = glow.height = 64;
@@ -20,9 +30,9 @@ export function createEffects(ctx: CanvasRenderingContext2D, accent: string): Ef
     const g = glow.getContext('2d');
     if (g) {
       const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-      grad.addColorStop(0, `rgba(${accent},0.85)`);
-      grad.addColorStop(0.4, `rgba(${accent},0.28)`);
-      grad.addColorStop(1, `rgba(${accent},0)`);
+      grad.addColorStop(0, rgba(accent, 0.85));
+      grad.addColorStop(0.4, rgba(accent, 0.28));
+      grad.addColorStop(1, rgba(accent, 0));
       g.fillStyle = grad;
       g.fillRect(0, 0, 64, 64);
     }

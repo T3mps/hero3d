@@ -2,6 +2,7 @@
 // anything not re-exported from this file is internal. Named exports only, and
 // no module has import-time side effects.
 export * from './math.js';
+export * from './color.js';
 export * from './camera.js';
 export * from './quads.js';
 export * from './glyphs.js';

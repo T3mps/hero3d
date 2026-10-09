@@ -19,7 +19,7 @@
 // Every draw call accepts an optional `font` (a CSS font-family list) so one
 // painter can serve several faces - a UI face, a brand face, an icon font -
 // without one painter per face; the family is part of the cache key. The
-// default is the painter-level `opts.font`, unchanged from before.
+// default is the painter-level `opts.font` (required: a CSS font-family list).
 import { type Quad, type QuadSize, localPoint } from './quads.js';
 
 export const TEXT_MIN = 0.5; // px: below this a glyph rasterizes to nothing - skip the call
@@ -41,10 +41,10 @@ export interface GlyphPainter {
 export function createGlyphPainter(
   ctx: CanvasRenderingContext2D,
   dpr: number,
-  opts?: { font?: string; cacheCap?: number }
+  opts: { font: string; cacheCap?: number }
 ): GlyphPainter {
-  const defaultFont = opts?.font ?? '"Space Mono", monospace';
-  const GLYPH_CAP = opts?.cacheCap ?? 384;
+  const defaultFont = opts.font;
+  const GLYPH_CAP = opts.cacheCap ?? 384;
 
   const bakeCtx = (() => {
     const c = document.createElement('canvas');
