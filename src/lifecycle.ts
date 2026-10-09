@@ -7,12 +7,15 @@
 // - reduced motion: draw once per resize, never start a loop;
 // - off screen: no frames (an IntersectionObserver starts and stops the loop);
 // - frame cap: MAX_FPS (60) by default, `maxFps` overrides it;
-// - DPR: clampDpr() (at most 2) by default, `dpr` overrides it;
+// - DPR: clampDpr() (at most 2) by default, `dpr` overrides it, `adaptive`
+//   steps it down and up with the machine's headroom;
 // - time: draw(now) gets the RAF timestamp (performance.now() for the draws
 //   outside the loop) unless a `clock` is given, e.g. to pin a test frame;
 // - WebGL context lost (on this canvas): the loop stops; when it is restored
 //   the hero's onContextRestored() rebuilds its GL state, then the canvas is
 //   resized and drawn and the loop resumes if the canvas is on screen.
+
+import { createFrameWindow, createQualityGovernor, type FrameStats, type GovernorOpts } from './quality.js';
 
 export const prefersReducedMotion = () =>
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -55,6 +58,12 @@ export interface HeroCanvasOpts {
    *  without it a lost context stays lost and the canvas keeps its last frame
    *  or goes blank, as the browser decides. */
   onContextRestored?(): void;
+  /** Adapt the DPR to the machine: start at levels[0] and step down while
+   *  frames run long, back up after sustained headroom (see quality.ts).
+   *  Overrides `dpr`. The budget defaults to the frame cap's interval. */
+  adaptive?: Partial<GovernorOpts> & { levels: readonly number[] };
+  /** Frame telemetry about once a second while running (dev overlays, logs). */
+  onStats?(stats: FrameStats & { dpr: number }): void;
 }
 
 export interface HeroCanvasHandle {
@@ -70,9 +79,12 @@ export function createHeroCanvas(
   opts: HeroCanvasOpts
 ): HeroCanvasHandle {
   const reduced = opts.reduced ?? prefersReducedMotion();
-  const dpr = opts.dpr ?? clampDpr();
-
   const interval = 1000 / (opts.maxFps ?? MAX_FPS);
+  const governor = opts.adaptive ? createQualityGovernor({ budgetMs: interval, ...opts.adaptive }) : null;
+  let dpr = governor ? governor.value : (opts.dpr ?? clampDpr());
+  const stats = opts.onStats ? createFrameWindow(120) : null;
+  let lastStats = 0;
+  let fresh = true; // the first frame after (re)starting has no interval
 
   let rafId = 0;
   let running = false;
@@ -82,8 +94,21 @@ export function createHeroCanvas(
   let prevTick = 0;
   const loop = (ts: number) => {
     if (shouldDraw(ts, lastDraw, ts - prevTick, interval)) {
+      const dt = ts - lastDraw;
       lastDraw = ts;
+      if (!fresh) {
+        stats?.push(dt);
+        if (governor?.sample(dt, ts)) {
+          dpr = governor.value;
+          resize();
+        }
+      }
+      fresh = false;
       opts.draw(opts.clock ? opts.clock() : ts);
+      if (stats && opts.onStats && ts - lastStats >= 1000) {
+        lastStats = ts;
+        opts.onStats({ ...stats.stats(), dpr });
+      }
     }
     prevTick = ts;
     rafId = requestAnimationFrame(loop);
@@ -91,6 +116,8 @@ export function createHeroCanvas(
   const start = () => {
     if (running || reduced || lost) return;
     running = true;
+    fresh = true;
+    governor?.reset();
     prevTick = performance.now();
     rafId = requestAnimationFrame(loop);
   };

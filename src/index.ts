@@ -24,6 +24,8 @@ export * from './scroll.js';
 export * from './tuner.js';
 export * from './lifecycle.js';
 export * from './capture.js';
+export * from './quality.js';
+export * from './worker.js';
 export * from './fieldGL.js';
 export * from './gl.js';
 export * from './mesh.js';
